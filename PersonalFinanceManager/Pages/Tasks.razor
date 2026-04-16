@@ -1,0 +1,269 @@
+@page "/tasks"
+@inject TaskService TaskService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Tasks</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H3" TagName="TagName.H1" class="rz-mb-4">
+    <RadzenIcon Icon="task_alt" /> Task Management
+</RadzenText>
+
+<RadzenCard class="rz-mb-4 rz-shadow-hover">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+            <RadzenText TextStyle="TextStyle.H5">My Tasks</RadzenText>
+            <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@tasks.Count.ToString()" />
+        </RadzenStack>
+        <RadzenButton Text="Add Task" Icon="add_circle" Click="@OpenAddDialog" ButtonStyle="ButtonStyle.Primary" />
+    </RadzenStack>
+</RadzenCard>
+
+@if (tasks.Any())
+{
+    @foreach (var task in tasks.Where(t => t.ParentTaskId == null))
+    {
+        <RadzenCard class="rz-mb-3 rz-shadow-hover" Style="@($"border-left: 4px solid {GetPriorityColor(task.Priority)};")">
+            <RadzenStack Gap="1rem">
+                <!-- Task Header -->
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start">
+                    <RadzenStack Gap="0.5rem" Style="flex: 1;">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap">
+                            <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">@task.Title</RadzenText>
+                            <span class="status-badge status-@task.Status.ToString().ToLower()">@task.Status</span>
+                            <span class="status-badge priority-@task.Priority.ToString().ToLower()">@task.Priority</span>
+                        </RadzenStack>
+                        
+                        <RadzenText TextStyle="TextStyle.Body2" Style="color: #666;">
+                            <RadzenIcon Icon="business" Style="font-size: 16px; vertical-align: middle;" /> @task.Company
+                        </RadzenText>
+                        
+                        @if (!string.IsNullOrEmpty(task.Description))
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2">@task.Description</RadzenText>
+                        }
+                        
+                        @if (task.DueDate.HasValue)
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption" Style="@GetDueDateStyle(task)">
+                                <RadzenIcon Icon="event" Style="font-size: 14px; vertical-align: middle;" /> 
+                                Due: @task.DueDate.Value.ToString("MMM dd, yyyy")
+                                @if (task.DueDate.Value < DateTime.Today && task.Status != Data.TaskStatus.Completed)
+                                {
+                                    <span style="color: #f44336; font-weight: bold;"> (Overdue)</span>
+                                }
+                            </RadzenText>
+                        }
+                    </RadzenStack>
+                    
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @if (task.Status != Data.TaskStatus.Completed)
+                        {
+                            <RadzenButton Icon="check_circle" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                                          Click="@(() => CompleteTask(task))" Variant="Variant.Flat" />
+                        }
+                        <RadzenButton Icon="add" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
+                                      Click="@(() => AddSubTask(task))" Variant="Variant.Flat" />
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                      Click="@(() => EditTask(task))" Variant="Variant.Flat" />
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" 
+                                      Click="@(() => DeleteTask(task))" Variant="Variant.Flat" />
+                    </RadzenStack>
+                </RadzenStack>
+
+                <!-- SubTasks -->
+                @if (subTasksDict.ContainsKey(task.Id) && subTasksDict[task.Id].Any())
+                {
+                    <div class="subtask-container">
+                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin-bottom: 0.5rem;">
+                            <RadzenIcon Icon="subdirectory_arrow_right" /> Subtasks (@subTasksDict[task.Id].Count(st => st.IsCompleted)/@subTasksDict[task.Id].Count)
+                        </RadzenText>
+                        
+                        <!-- Progress Bar -->
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" style="width: @GetSubTaskProgress(task.Id)%"></div>
+                        </div>
+                        
+                        @foreach (var subtask in subTasksDict[task.Id])
+                        {
+                            <div class="subtask-item @(subtask.IsCompleted ? "completed" : "")">
+                                <input type="checkbox" class="subtask-checkbox" 
+                                       checked="@subtask.IsCompleted" 
+                                       @onchange="@(() => ToggleSubTask(subtask))" />
+                                <RadzenText Style="flex: 1; margin: 0;">@subtask.Title</RadzenText>
+                                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall" 
+                                              Click="@(() => DeleteSubTask(subtask))" Variant="Variant.Text" />
+                            </div>
+                        }
+                    </div>
+                }
+            </RadzenStack>
+        </RadzenCard>
+    }
+}
+else
+{
+    <RadzenCard>
+        <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" Style="padding: 3rem;">
+            <RadzenIcon Icon="task" Style="font-size: 64px; color: #ccc;" />
+            <RadzenText TextStyle="TextStyle.H6" Style="color: #999;">No tasks yet</RadzenText>
+            <RadzenButton Text="Create Your First Task" Icon="add" Click="@OpenAddDialog" ButtonStyle="ButtonStyle.Primary" />
+        </RadzenStack>
+    </RadzenCard>
+}
+
+@code {
+    private List<DailyTask> tasks = new();
+    private Dictionary<int, List<SubTask>> subTasksDict = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        tasks = await TaskService.GetAllAsync();
+        
+        // Load subtasks for each task
+        subTasksDict.Clear();
+        foreach (var task in tasks)
+        {
+            var subtasks = await TaskService.GetSubTasksAsync(task.Id);
+            if (subtasks.Any())
+            {
+                subTasksDict[task.Id] = subtasks;
+            }
+        }
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var result = await DialogService.OpenAsync<TaskDialog>("Add Task",
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "600px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Task added successfully");
+        }
+    }
+
+    private async Task EditTask(DailyTask task)
+    {
+        var result = await DialogService.OpenAsync<TaskDialog>("Edit Task",
+            new Dictionary<string, object> { { "TaskId", task.Id } },
+            new DialogOptions { Width = "600px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Task updated successfully");
+        }
+    }
+
+    private async Task CompleteTask(DailyTask task)
+    {
+        task.Status = Data.TaskStatus.Completed;
+        task.CompletedAt = DateTime.Now;
+        await TaskService.UpdateAsync(task);
+        await LoadData();
+        NotificationService.Notify(NotificationSeverity.Success, "Success", "Task completed!");
+    }
+
+    private async Task DeleteTask(DailyTask task)
+    {
+        var confirm = await DialogService.Confirm("Are you sure you want to delete this task and all its subtasks?", "Confirm Delete",
+            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+        if (confirm == true)
+        {
+            await TaskService.DeleteAsync(task.Id);
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Task deleted successfully");
+        }
+    }
+
+    private async Task AddSubTask(DailyTask parentTask)
+    {
+        string subtaskTitle = string.Empty;
+        
+        var result = await DialogService.OpenAsync("Add Subtask",
+            ds => @<div>
+                <RadzenStack Gap="1rem">
+                    <RadzenFormField Text="Subtask title" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="@subtaskTitle" Placeholder="Enter subtask title" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                        <RadzenButton Text="Cancel" Click="() => ds.Close(false)" ButtonStyle="ButtonStyle.Light" />
+                        <RadzenButton Text="Add" Click="() => ds.Close(subtaskTitle)" ButtonStyle="ButtonStyle.Primary" />
+                    </RadzenStack>
+                </RadzenStack>
+            </div>,
+            new DialogOptions { Width = "450px" });
+
+        if (result != null)
+        {
+            var resultStr = result.ToString();
+            if (!string.IsNullOrWhiteSpace(resultStr))
+            {
+                var subtask = new SubTask
+                {
+                    ParentTaskId = parentTask.Id,
+                    Title = resultStr
+                };
+                
+                await TaskService.CreateSubTaskAsync(subtask);
+                await LoadData();
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "Subtask added");
+            }
+        }
+    }
+
+    private async Task ToggleSubTask(SubTask subtask)
+    {
+        subtask.IsCompleted = !subtask.IsCompleted;
+        await TaskService.UpdateSubTaskAsync(subtask);
+        await LoadData();
+    }
+
+    private async Task DeleteSubTask(SubTask subtask)
+    {
+        await TaskService.DeleteSubTaskAsync(subtask.Id);
+        await LoadData();
+        NotificationService.Notify(NotificationSeverity.Info, "Deleted", "Subtask removed");
+    }
+
+    private string GetPriorityColor(Data.TaskPriority priority)
+    {
+        return priority switch
+        {
+            Data.TaskPriority.Critical => "#f44336",
+            Data.TaskPriority.High => "#ff9800",
+            Data.TaskPriority.Medium => "#2196f3",
+            Data.TaskPriority.Low => "#4caf50",
+            _ => "#9e9e9e"
+        };
+    }
+
+    private double GetSubTaskProgress(int taskId)
+    {
+        if (!subTasksDict.ContainsKey(taskId) || !subTasksDict[taskId].Any())
+            return 0;
+        
+        var total = subTasksDict[taskId].Count;
+        var completed = subTasksDict[taskId].Count(st => st.IsCompleted);
+        return (double)completed / total * 100;
+    }
+
+    private string GetDueDateStyle(DailyTask task)
+    {
+        if (!task.DueDate.HasValue)
+            return "color: #666;";
+        
+        return task.DueDate.Value < DateTime.Today && task.Status != Data.TaskStatus.Completed 
+            ? "color: #f44336;" 
+            : "color: #666;";
+    }
+}

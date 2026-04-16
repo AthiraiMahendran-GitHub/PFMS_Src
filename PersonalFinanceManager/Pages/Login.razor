@@ -1,0 +1,139 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+@inject NavigationManager NavigationManager
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Login - Personal Finance Manager</PageTitle>
+
+<div class="login-container">
+    <RadzenCard class="login-card">
+        <RadzenStack Gap="2rem">
+            <!-- Logo/Header -->
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="account_balance_wallet" Style="font-size: 4rem; color: var(--rz-primary);" />
+                <RadzenText TextStyle="TextStyle.H3" Style="margin: 0;">Personal Finance Manager</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">
+                    Manage your finances with ease
+                </RadzenText>
+            </RadzenStack>
+
+            <!-- Login Form -->
+            <EditForm Model="@loginModel" OnValidSubmit="@HandleLogin">
+                <DataAnnotationsValidator />
+                
+                <RadzenStack Gap="1.5rem">
+                    <RadzenFormField Text="Email or Username" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="loginModel.Username" 
+                                       Placeholder="Enter your email or username" 
+                                       Style="width: 100%;" />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text="Password" Variant="Variant.Outlined">
+                        <RadzenPassword @bind-Value="loginModel.Password" 
+                                        Placeholder="Enter your password" 
+                                        Style="width: 100%;" />
+                    </RadzenFormField>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                        <RadzenCheckBox @bind-Value="loginModel.RememberMe" Name="rememberMe" />
+                        <RadzenLabel Text="Remember me" Component="rememberMe" Style="cursor: pointer;" />
+                        <RadzenLink Path="/forgot-password" Text="Forgot Password?" Style="margin-left: auto;" />
+                    </RadzenStack>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter">
+                            @errorMessage
+                        </RadzenAlert>
+                    }
+
+                    <RadzenButton Text="Sign In" 
+                                  ButtonType="ButtonType.Submit" 
+                                  ButtonStyle="ButtonStyle.Primary" 
+                                  Icon="login"
+                                  Size="ButtonSize.Large"
+                                  Style="width: 100%;" />
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Don't have an account?</RadzenText>
+                        <RadzenLink Path="/register" Text="Sign Up" Style="font-weight: 600;" />
+                    </RadzenStack>
+                </RadzenStack>
+            </EditForm>
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: 450px;
+        padding: 3rem 2rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    @@media (max-width: 576px) {
+        .login-card {
+            padding: 2rem 1.5rem;
+        }
+    }
+</style>
+
+@code {
+    private LoginModel loginModel = new();
+    private string errorMessage = string.Empty;
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(loginModel.Username) || string.IsNullOrWhiteSpace(loginModel.Password))
+        {
+            errorMessage = "Please enter both username and password.";
+            return;
+        }
+
+        try
+        {
+            var user = await UserService.LoginAsync(loginModel.Username, loginModel.Password);
+
+            if (user != null)
+            {
+                var customAuthStateProvider = (CustomAuthenticationStateProvider)AuthStateProvider;
+                await customAuthStateProvider.UpdateAuthenticationState(new UserSession
+                {
+                    Id = user.Id,
+                    Username = user.Username,
+                    FullName = user.FullName,
+                    Email = user.Email
+                });
+
+                NavigationManager.NavigateTo("/", true);
+            }
+            else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public bool RememberMe { get; set; }
+    }
+}

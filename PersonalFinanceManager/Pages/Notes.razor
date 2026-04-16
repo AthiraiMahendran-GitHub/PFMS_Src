@@ -1,0 +1,216 @@
+@page "/notes"
+@using PersonalFinanceManager.Data
+@inject NoteService NoteService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Notes</PageTitle>
+
+<div class="card-header-gradient">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="note" Style="font-size: 2rem;" />
+            <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; color: white;">Daily Notes</RadzenText>
+        </RadzenStack>
+        <RadzenButton Icon="add_circle" Text="Add Note" ButtonStyle="ButtonStyle.Light" Click="@OpenAddDialog" />
+    </RadzenStack>
+</div>
+
+<!-- Pinned Notes -->
+@if (pinnedNotes.Any())
+{
+    <RadzenCard class="rz-mt-4">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+            <RadzenIcon Icon="push_pin" /> Pinned Notes
+        </RadzenText>
+        <RadzenRow Gap="1rem">
+            @foreach (var note in pinnedNotes)
+            {
+                <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+                    <RadzenCard Style="border-left: 4px solid #ff9800; background: #fff8e1;">
+                        <RadzenStack Gap="0.5rem">
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start">
+                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@note.Category" />
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem">
+                                    @if (note.IsImportant)
+                                    {
+                                        <RadzenIcon Icon="star" Style="color: #ffc107; font-size: 20px;" />
+                                    }
+                                    <RadzenIcon Icon="push_pin" Style="color: #ff9800; font-size: 20px;" />
+                                </RadzenStack>
+                            </RadzenStack>
+                            <RadzenText Style="white-space: pre-wrap; max-height: 100px; overflow: hidden;">
+                                @(note.Content.Length > 150 ? note.Content.Substring(0, 150) + "..." : note.Content)
+                            </RadzenText>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-2">
+                                <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Click="@(() => ViewNote(note))" />
+                                <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Click="@(() => EditNote(note))" />
+                                <RadzenButton Icon="push_pin" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Click="@(() => TogglePin(note))" />
+                                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeleteNote(note))" />
+                            </RadzenStack>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+            }
+        </RadzenRow>
+    </RadzenCard>
+}
+
+<!-- All Notes -->
+<RadzenCard class="rz-mt-4">
+    <RadzenDataGrid Data="@regularNotes" TItem="Note" AllowFiltering="true" AllowSorting="true" 
+                    AllowPaging="true" PageSize="10">
+        <Columns>
+            <RadzenDataGridColumn TItem="Note" Title="Status" Width="80px" Sortable="false" Filterable="false">
+                <Template Context="note">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem">
+                        <RadzenButton Icon="@(note.IsImportant ? "star" : "star_border")" 
+                                      ButtonStyle="@(note.IsImportant ? ButtonStyle.Warning : ButtonStyle.Light)" 
+                                      Size="ButtonSize.ExtraSmall" 
+                                      Click="@(() => ToggleStar(note))" 
+                                      Variant="Variant.Flat" />
+                        <RadzenButton Icon="@(note.IsPinned ? "push_pin" : "push_pin")" 
+                                      ButtonStyle="@(note.IsPinned ? ButtonStyle.Warning : ButtonStyle.Light)" 
+                                      Size="ButtonSize.ExtraSmall" 
+                                      Click="@(() => TogglePin(note))" 
+                                      Variant="Variant.Flat" />
+                    </RadzenStack>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Note" Property="Category" Title="Category" Width="150px" />
+            <RadzenDataGridColumn TItem="Note" Property="Content" Title="Content">
+                <Template Context="note">
+                    <div style="max-width: 500px; white-space: pre-wrap;">
+                        @(note.Content.Length > 200 ? note.Content.Substring(0, 200) + "..." : note.Content)
+                    </div>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Note" Property="CreatedAt" Title="Created" Width="150px">
+                <Template Context="note">
+                    @note.CreatedAt.ToString("dd MMM yyyy HH:mm")
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Note" Title="Actions" Width="150px" Sortable="false" Filterable="false">
+                <Template Context="note">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" 
+                                      Click="@(() => ViewNote(note))" />
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" 
+                                      Click="@(() => EditNote(note))" />
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" 
+                                      Click="@(() => DeleteNote(note))" />
+                    </RadzenStack>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenCard>
+
+@if (!notes.Any())
+{
+    <RadzenCard class="rz-mt-4" Style="text-align: center; padding: 3rem;">
+        <RadzenIcon Icon="note" Style="font-size: 4rem; color: #ccc;" />
+        <RadzenText TextStyle="TextStyle.H6" Style="color: #999; margin-top: 1rem;">No notes yet</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="color: #bbb;">Click "Add Note" to create your first note</RadzenText>
+    </RadzenCard>
+}
+
+@code {
+    private List<Note> notes = new();
+    private List<Note> pinnedNotes = new();
+    private List<Note> regularNotes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        notes = await NoteService.GetAllAsync();
+        pinnedNotes = notes.Where(n => n.IsPinned).OrderByDescending(n => n.CreatedAt).ToList();
+        regularNotes = notes.Where(n => !n.IsPinned).OrderByDescending(n => n.IsImportant).ThenByDescending(n => n.CreatedAt).ToList();
+    }
+
+    private async Task ToggleStar(Note note)
+    {
+        note.IsImportant = !note.IsImportant;
+        await NoteService.UpdateAsync(note);
+        await LoadData();
+        NotificationService.Notify(NotificationSeverity.Info, "Updated", 
+            note.IsImportant ? "Note marked as important" : "Note unmarked as important");
+    }
+
+    private async Task TogglePin(Note note)
+    {
+        note.IsPinned = !note.IsPinned;
+        await NoteService.UpdateAsync(note);
+        await LoadData();
+        NotificationService.Notify(NotificationSeverity.Info, "Updated", 
+            note.IsPinned ? "Note pinned" : "Note unpinned");
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var result = await DialogService.OpenAsync<NoteDialog>("Add Note",
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "700px", Height = "500px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Note added successfully");
+        }
+    }
+
+    private async Task ViewNote(Note note)
+    {
+        await DialogService.OpenAsync("View Note",
+            ds => @<div>
+                <RadzenStack Gap="1rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@note.Category" />
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                            @if (note.IsImportant)
+                            {
+                                <RadzenIcon Icon="star" Style="color: #ffc107;" />
+                            }
+                            @if (note.IsPinned)
+                            {
+                                <RadzenIcon Icon="push_pin" Style="color: #ff9800;" />
+                            }
+                        </RadzenStack>
+                    </RadzenStack>
+                    <RadzenText TextStyle="TextStyle.Body1" Style="white-space: pre-wrap;">@note.Content</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">Created: @note.CreatedAt.ToString("dd MMM yyyy HH:mm")</RadzenText>
+                </RadzenStack>
+            </div>,
+            new DialogOptions { Width = "700px" });
+    }
+
+    private async Task EditNote(Note note)
+    {
+        var result = await DialogService.OpenAsync<NoteDialog>("Edit Note",
+            new Dictionary<string, object> { { "NoteId", note.Id } },
+            new DialogOptions { Width = "700px", Height = "500px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Note updated successfully");
+        }
+    }
+
+    private async Task DeleteNote(Note note)
+    {
+        var confirm = await DialogService.Confirm("Are you sure?", "Confirm Delete",
+            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+        if (confirm == true)
+        {
+            await NoteService.DeleteAsync(note.Id);
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Note deleted successfully");
+        }
+    }
+}

@@ -1,0 +1,345 @@
+@page "/transactions"
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject ExpenseService ExpenseService
+@inject IncomeService IncomeService
+@inject AccountService AccountService
+@inject LoanService LoanService
+@inject NotificationService NotificationService
+
+<PageTitle>Transaction History</PageTitle>
+
+<div class="card-header-gradient">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="history" Style="font-size: 2rem;" />
+            <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; color: white;">Transaction History</RadzenText>
+        </RadzenStack>
+        <RadzenButton Icon="refresh" Text="Refresh" ButtonStyle="ButtonStyle.Light" Click="@LoadTransactions" />
+    </RadzenStack>
+</div>
+
+<!-- Filters -->
+<RadzenCard class="rz-mt-4">
+    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+        <RadzenIcon Icon="filter_list" /> Filters
+    </RadzenText>
+    
+    <RadzenRow Gap="1rem">
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenFormField Text="Transaction Type" Variant="Variant.Outlined">
+                <RadzenDropDown @bind-Value="@filterType" Data="@transactionTypes" Style="width: 100%;" 
+                                Change="@ApplyFilters" AllowClear="true" Placeholder="All Types" />
+            </RadzenFormField>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenFormField Text="Account" Variant="Variant.Outlined">
+                <RadzenDropDown @bind-Value="@filterAccountId" Data="@accounts" TextProperty="Name" ValueProperty="Id"
+                                Style="width: 100%;" Change="@ApplyFilters" AllowClear="true" Placeholder="All Accounts" />
+            </RadzenFormField>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenFormField Text="From Date" Variant="Variant.Outlined">
+                <RadzenDatePicker @bind-Value="@filterFromDate" Style="width: 100%;" Change="@ApplyFilters" 
+                                  ShowTime="false" AllowClear="true" />
+            </RadzenFormField>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenFormField Text="To Date" Variant="Variant.Outlined">
+                <RadzenDatePicker @bind-Value="@filterToDate" Style="width: 100%;" Change="@ApplyFilters" 
+                                  ShowTime="false" AllowClear="true" />
+            </RadzenFormField>
+        </RadzenColumn>
+    </RadzenRow>
+    
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-3">
+        <RadzenButton Text="Clear Filters" Icon="clear" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                      Click="@ClearFilters" />
+        <RadzenButton Text="Export to CSV" Icon="download" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" 
+                      Click="@ExportTransactions" />
+    </RadzenStack>
+</RadzenCard>
+
+<!-- Summary Cards -->
+<RadzenRow Gap="1rem" class="rz-mt-4">
+    <RadzenColumn Size="12" SizeMD="3">
+        <RadzenCard Style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white;">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Caption">Total Income</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@totalIncome.ToString("N2")</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@incomeCount transactions</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+    
+    <RadzenColumn Size="12" SizeMD="3">
+        <RadzenCard Style="background: linear-gradient(135deg, #f44336 0%, #e91e63 100%); color: white;">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Caption">Total Expenses</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@totalExpenses.ToString("N2")</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@expenseCount transactions</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+    
+    <RadzenColumn Size="12" SizeMD="3">
+        <RadzenCard Style="background: linear-gradient(135deg, #ff9800 0%, #ff5722 100%); color: white;">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Caption">Loans</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@totalLoans.ToString("N2")</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@loanCount transactions</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+    
+    <RadzenColumn Size="12" SizeMD="3">
+        <RadzenCard Style="background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); color: white;">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.Caption">Net Balance</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@((totalIncome - totalExpenses).ToString("N2"))</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@((incomeCount + expenseCount + loanCount)) total</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+</RadzenRow>
+
+<!-- Transaction List -->
+<RadzenCard class="rz-mt-4">
+    <RadzenDataGrid Data="@filteredTransactions" TItem="TransactionViewModel" AllowSorting="true" AllowPaging="true" 
+                    PageSize="20" PagerHorizontalAlign="HorizontalAlign.Center">
+        <Columns>
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Date" Title="Date" Width="120px" Sortable="true">
+                <Template Context="transaction">
+                    @transaction.Date.ToString("dd MMM yyyy")
+                </Template>
+            </RadzenDataGridColumn>
+            
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Type" Title="Type" Width="120px">
+                <Template Context="transaction">
+                    <RadzenBadge BadgeStyle="@GetTypeBadgeStyle(transaction.Type)" Text="@transaction.Type" />
+                </Template>
+            </RadzenDataGridColumn>
+            
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Description" Title="Description" />
+            
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Category" Title="Category/Source" Width="150px" />
+            
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Account" Title="Account" Width="150px" />
+            
+            <RadzenDataGridColumn TItem="TransactionViewModel" Property="Amount" Title="Amount" Width="150px" Sortable="true">
+                <Template Context="transaction">
+                    <RadzenText Style="@GetAmountStyle(transaction.Type)">
+                        @GetAmountPrefix(transaction.Type)₹@transaction.Amount.ToString("N2")
+                    </RadzenText>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenCard>
+
+@if (!filteredTransactions.Any())
+{
+    <RadzenCard class="rz-mt-4" Style="text-align: center; padding: 3rem;">
+        <RadzenIcon Icon="receipt_long" Style="font-size: 4rem; color: #ccc;" />
+        <RadzenText TextStyle="TextStyle.H6" Style="color: #999; margin-top: 1rem;">No transactions found</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="color: #bbb;">Try adjusting your filters</RadzenText>
+    </RadzenCard>
+}
+
+@code {
+    private List<TransactionViewModel> allTransactions = new();
+    private List<TransactionViewModel> filteredTransactions = new();
+    private List<Account> accounts = new();
+    
+    private string? filterType;
+    private int? filterAccountId;
+    private DateTime? filterFromDate;
+    private DateTime? filterToDate;
+    
+    private List<string> transactionTypes = new() { "Income", "Expense", "Lending", "Borrowing", "Loan Payment" };
+    
+    private decimal totalIncome;
+    private decimal totalExpenses;
+    private decimal totalLoans;
+    private int incomeCount;
+    private int expenseCount;
+    private int loanCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        accounts = await AccountService.GetAllAccountsAsync();
+        await LoadTransactions();
+    }
+
+    private async Task LoadTransactions()
+    {
+        allTransactions.Clear();
+        
+        // Load Income
+        var incomes = await IncomeService.GetAllIncomesAsync();
+        foreach (var income in incomes)
+        {
+            allTransactions.Add(new TransactionViewModel
+            {
+                Date = income.Date,
+                Type = "Income",
+                Description = income.Description ?? "-",
+                Category = income.Source,
+                Account = income.ReceivedIn,
+                Amount = income.Amount
+            });
+        }
+        
+        // Load Expenses
+        var expenses = await ExpenseService.GetAllAsync();
+        foreach (var expense in expenses)
+        {
+            allTransactions.Add(new TransactionViewModel
+            {
+                Date = expense.Date,
+                Type = "Expense",
+                Description = expense.Description ?? "-",
+                Category = expense.Category,
+                Account = expense.PaymentSource,
+                Amount = expense.Amount
+            });
+        }
+        
+        // Load Loans
+        var loans = await LoanService.GetAllAsync();
+        foreach (var loan in loans)
+        {
+            var type = loan.Type == TransactionType.Lending ? "Lending" : "Borrowing";
+            allTransactions.Add(new TransactionViewModel
+            {
+                Date = loan.Date,
+                Type = type,
+                Description = $"{loan.PersonName} - {loan.Description ?? ""}",
+                Category = type,
+                Account = loan.PaymentSource ?? "-",
+                Amount = loan.Amount
+            });
+            
+            // Add loan payments
+            var payments = await LoanService.GetPaymentsAsync(loan.Id);
+            foreach (var payment in payments)
+            {
+                allTransactions.Add(new TransactionViewModel
+                {
+                    Date = payment.PaymentDate,
+                    Type = "Loan Payment",
+                    Description = $"Payment for {loan.PersonName} - {payment.Notes ?? ""}",
+                    Category = "Loan Payment",
+                    Account = payment.PaymentSource ?? "-",
+                    Amount = payment.Amount
+                });
+            }
+        }
+        
+        // Sort by date descending
+        allTransactions = allTransactions.OrderByDescending(t => t.Date).ToList();
+        
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = allTransactions.AsEnumerable();
+        
+        if (!string.IsNullOrEmpty(filterType))
+        {
+            filtered = filtered.Where(t => t.Type == filterType);
+        }
+        
+        if (filterAccountId.HasValue)
+        {
+            var accountName = accounts.FirstOrDefault(a => a.Id == filterAccountId.Value)?.Name;
+            if (!string.IsNullOrEmpty(accountName))
+            {
+                filtered = filtered.Where(t => t.Account == accountName);
+            }
+        }
+        
+        if (filterFromDate.HasValue)
+        {
+            filtered = filtered.Where(t => t.Date >= filterFromDate.Value);
+        }
+        
+        if (filterToDate.HasValue)
+        {
+            filtered = filtered.Where(t => t.Date <= filterToDate.Value);
+        }
+        
+        filteredTransactions = filtered.ToList();
+        
+        // Calculate summaries
+        totalIncome = filteredTransactions.Where(t => t.Type == "Income").Sum(t => t.Amount);
+        totalExpenses = filteredTransactions.Where(t => t.Type == "Expense").Sum(t => t.Amount);
+        totalLoans = filteredTransactions.Where(t => t.Type == "Lending" || t.Type == "Borrowing").Sum(t => t.Amount);
+        incomeCount = filteredTransactions.Count(t => t.Type == "Income");
+        expenseCount = filteredTransactions.Count(t => t.Type == "Expense");
+        loanCount = filteredTransactions.Count(t => t.Type == "Lending" || t.Type == "Borrowing" || t.Type == "Loan Payment");
+    }
+
+    private void ClearFilters()
+    {
+        filterType = null;
+        filterAccountId = null;
+        filterFromDate = null;
+        filterToDate = null;
+        ApplyFilters();
+    }
+
+    private async Task ExportTransactions()
+    {
+        // TODO: Implement CSV export
+        NotificationService.Notify(NotificationSeverity.Info, "Export", "CSV export feature coming soon!");
+    }
+
+    private BadgeStyle GetTypeBadgeStyle(string type) => type switch
+    {
+        "Income" => BadgeStyle.Success,
+        "Expense" => BadgeStyle.Danger,
+        "Lending" => BadgeStyle.Warning,
+        "Borrowing" => BadgeStyle.Info,
+        "Loan Payment" => BadgeStyle.Secondary,
+        _ => BadgeStyle.Light
+    };
+
+    private string GetAmountStyle(string type)
+    {
+        var color = type switch
+        {
+            "Income" => "#4caf50",
+            "Expense" => "#f44336",
+            "Lending" => "#ff9800",
+            "Borrowing" => "#2196f3",
+            "Loan Payment" => "#9c27b0",
+            _ => "#666"
+        };
+        return $"font-weight: 600; color: {color};";
+    }
+
+    private string GetAmountPrefix(string type) => type switch
+    {
+        "Income" => "+",
+        "Expense" => "-",
+        "Lending" => "-",
+        "Borrowing" => "+",
+        "Loan Payment" => "-",
+        _ => ""
+    };
+
+    public class TransactionViewModel
+    {
+        public DateTime Date { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Account { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+}

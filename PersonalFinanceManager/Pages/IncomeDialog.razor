@@ -1,0 +1,88 @@
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject IncomeService IncomeService
+@inject AccountService AccountService
+@inject DialogService DialogService
+
+<EditForm Model="@income" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Amount" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@income.Amount" Style="width: 100%;" ShowUpDown="false" />
+            <ValidationMessage For="@(() => income.Amount)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Source" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@income.Source" Style="width: 100%;" Placeholder="e.g., Salary, Freelance" />
+            <ValidationMessage For="@(() => income.Source)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Date" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@income.Date" Style="width: 100%;" ShowTime="false" />
+            <ValidationMessage For="@(() => income.Date)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Received In" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@income.AccountId" Data="@accounts" TextProperty="Name" ValueProperty="Id" 
+                            Style="width: 100%;" Placeholder="Select Account" AllowClear="true"
+                            Change="@OnAccountChanged" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@income.Description" Style="width: 100%;" Rows="3" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton ButtonType="ButtonType.Submit" Icon="save" Text="Save" ButtonStyle="ButtonStyle.Primary" />
+            <RadzenButton ButtonType="ButtonType.Button" Icon="cancel" Text="Cancel" ButtonStyle="ButtonStyle.Light" 
+                          Click="@(() => DialogService.Close(null))" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? IncomeId { get; set; }
+
+    private Data.Income income = new() { Date = DateTime.Today };
+    private List<Account> accounts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        accounts = await AccountService.GetAllAccountsAsync();
+        
+        if (IncomeId.HasValue)
+        {
+            var existing = await IncomeService.GetIncomeByIdAsync(IncomeId.Value);
+            if (existing != null)
+            {
+                income = existing;
+            }
+        }
+    }
+
+    private void OnAccountChanged(object value)
+    {
+        if (value != null && int.TryParse(value.ToString(), out int accountId))
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == accountId);
+            if (account != null)
+            {
+                income.ReceivedIn = account.Name;
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (IncomeId.HasValue)
+        {
+            await IncomeService.UpdateIncomeAsync(income);
+        }
+        else
+        {
+            await IncomeService.CreateIncomeAsync(income);
+        }
+        DialogService.Close(true);
+    }
+}

@@ -1,0 +1,90 @@
+@using PersonalFinanceManager.Data
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <EditForm Model="@transaction" OnValidSubmit="@HandleSubmit">
+        <DataAnnotationsValidator />
+        
+        <RadzenStack Gap="1rem">
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Stock Symbol" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="transaction.Symbol" Placeholder="e.g., RELIANCE, TCS" Style="width: 100%; text-transform: uppercase;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Stock Name" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="transaction.Name" Placeholder="e.g., Reliance Industries" Style="width: 100%;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Quantity" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="transaction.Quantity" Min="0" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Price per Share (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="transaction.Price" Min="0" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Transaction Date" Variant="Variant.Outlined">
+                        <RadzenDatePicker @bind-Value="transaction.TransactionDate" DateFormat="dd/MM/yyyy" Style="width: 100%;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Brokerage Fee (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="transaction.BrokerageCharges" Min="0" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenFormField Text="Notes (Optional)" Variant="Variant.Outlined">
+                <RadzenTextArea @bind-Value="transaction.Notes" Rows="2" Placeholder="Add any notes about this purchase..." Style="width: 100%;" />
+            </RadzenFormField>
+
+            <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                    <RadzenText TextStyle="TextStyle.Body1"><strong>Total Investment:</strong></RadzenText>
+                    <RadzenText TextStyle="TextStyle.H6" Style="color: var(--rz-info);">
+                        ₹@((transaction.Quantity * transaction.Price + transaction.BrokerageCharges).ToString("N2"))
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenAlert>
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-3">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" Size="ButtonSize.Medium" />
+                <RadzenButton Text="Buy Stock" 
+                              ButtonType="ButtonType.Submit" 
+                              ButtonStyle="ButtonStyle.Success" 
+                              Icon="add_shopping_cart"
+                              Size="ButtonSize.Medium" />
+            </RadzenStack>
+        </RadzenStack>
+    </EditForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public InvestmentTransaction transaction { get; set; } = new() 
+    { 
+        Action = TransactionAction.Buy,
+        TransactionDate = DateTime.Now,
+        Type = InvestmentType.Stock
+    };
+
+    private void HandleSubmit()
+    {
+        DialogService.Close(transaction);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+}

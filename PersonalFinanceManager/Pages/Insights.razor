@@ -1,0 +1,456 @@
+@page "/insights"
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject ReportService ReportService
+@inject NavigationManager NavigationManager
+
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Financial Insights</PageTitle>
+
+@if (report == null && string.IsNullOrEmpty(errorMessage))
+{
+    <div class="loader-container">
+        <RadzenProgressBarCircular Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mt-4">Analyzing your finances...</RadzenText>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="loader-container">
+        <RadzenIcon Icon="error_outline" Style="font-size: 4rem; color: var(--rz-danger);" />
+        <RadzenText TextStyle="TextStyle.H6" Style="color: var(--rz-danger);" class="rz-mt-4">Analysis Failed</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1">@errorMessage</RadzenText>
+        <RadzenButton Text="Try Again" Click="@(() => ChangeFilter("overall"))" class="rz-mt-4" />
+    </div>
+}
+else
+{
+<div class="insights-container animate-fade-in">
+    <!-- Header -->
+    <div class="glass-header">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Wrap="FlexWrap.Wrap" Gap="1rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <div class="icon-circle">
+                    <RadzenIcon Icon="insights" Style="font-size: 2rem; color: white;" />
+                </div>
+                <div>
+                    <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; color: #1a1a1a; font-weight: 700;">Financial Insights</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="color: #666;">Deep analysis of your spending and earning patterns</RadzenText>
+                </div>
+            </RadzenStack>
+            
+            <div class="filter-group">
+                <RadzenButton Text="Overall" Click="@(() => ChangeFilter("overall"))" ButtonStyle="@(isOverall ? ButtonStyle.Primary : ButtonStyle.Light)" Style="border-radius: 20px; min-width: 100px;" />
+                <RadzenButton Text="Yearly" Click="@(() => ChangeFilter("year"))" ButtonStyle="@(isYearly ? ButtonStyle.Primary : ButtonStyle.Light)" Style="border-radius: 20px; min-width: 100px;" />
+                <RadzenButton Text="Monthly" Click="@(() => ChangeFilter("month"))" ButtonStyle="@(isMonthly ? ButtonStyle.Primary : ButtonStyle.Light)" Style="border-radius: 20px; min-width: 100px;" />
+                <RadzenButton Icon="calendar_today" Click="@(() => { showCustomDates = !showCustomDates; })" ButtonStyle="@(showCustomDates ? ButtonStyle.Secondary : ButtonStyle.Light)" Style="border-radius: 20px;" />
+            </div>
+        </RadzenStack>
+    </div>
+
+    @if (showCustomDates)
+    {
+        <RadzenCard class="glass-card rz-mt-4 animate-slide-down">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenFormField Text="Start Date" Variant="Variant.Outlined">
+                    <RadzenDatePicker @bind-Value="@startDate" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="End Date" Variant="Variant.Outlined">
+                    <RadzenDatePicker @bind-Value="@endDate" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenButton Text="Apply Filter" Click="@LoadData" ButtonStyle="ButtonStyle.Primary" Icon="check" Style="min-width: 150px;" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <!-- Comparison Toggle -->
+    <RadzenCard class="glass-card rz-mt-4">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+            <RadzenStack Gap="0">
+                <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin: 0; font-weight: 600;">Comparison Mode</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption">Enable to see side-by-side comparison with the previous equivalent period</RadzenText>
+            </RadzenStack>
+            <RadzenSwitch @bind-Value="@compareMode" Change="@OnCompareChanged" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- Stat Cards -->
+    <RadzenRow Gap="1.5rem" class="rz-mt-4">
+        <RadzenColumn Size="12" SizeMD="3">
+            <div class="stat-card stat-income">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Overline">Income</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H4">₹@(report?.TotalIncome.ToString("N2"))</RadzenText>
+                    @if (compareMode && previousReport != null)
+                    {
+                        <div class="comparison-small @GetTrendClass(report?.TotalIncome ?? 0, previousReport.TotalIncome)">
+                            @GetTrendIcon(report?.TotalIncome ?? 0, previousReport.TotalIncome) 
+                            @GetPercentChange(report?.TotalIncome ?? 0, previousReport.TotalIncome)%
+                        </div>
+                    }
+                </RadzenStack>
+            </div>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <div class="stat-card stat-expense">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Overline">Expenses</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H4">₹@(report?.TotalExpense.ToString("N2"))</RadzenText>
+                    @if (compareMode && previousReport != null)
+                    {
+                        <div class="comparison-small @GetTrendClass(previousReport.TotalExpense, report?.TotalExpense ?? 0)">
+                            @GetTrendIcon(report?.TotalExpense ?? 0, previousReport.TotalExpense) 
+                            @GetPercentChange(report?.TotalExpense ?? 0, previousReport.TotalExpense)%
+                        </div>
+                    }
+                </RadzenStack>
+            </div>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <div class="stat-card stat-lent">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Overline">Money Lent</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H4">₹@(report?.TotalLent.ToString("N2"))</RadzenText>
+                    @if (compareMode && previousReport != null)
+                    {
+                        <div class="comparison-small">Prev: ₹@previousReport.TotalLent.ToString("N2")</div>
+                    }
+                </RadzenStack>
+            </div>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <div class="stat-card stat-borrowed">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Overline">Money Borrowed</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H4">₹@(report?.TotalBorrowed.ToString("N2") ?? "0.00")</RadzenText>
+                    @if (compareMode && previousReport != null)
+                    {
+                        <div class="comparison-small">Prev: ₹@previousReport.TotalBorrowed.ToString("N2")</div>
+                    }
+                </RadzenStack>
+            </div>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <!-- Pie Charts -->
+    <RadzenRow Gap="1.5rem" class="rz-mt-4">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard class="glass-card">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-4">Income Sources (%)</RadzenText>
+                @if (report?.IncomeBySource.Any() == true)
+                {
+                    <RadzenChart Style="height: 350px;">
+                        <RadzenDonutSeries Data="@report.IncomeBySource" CategoryProperty="Category" ValueProperty="Value" TItem="ChartDataPoint">
+                        <TooltipTemplate Context="item">
+                            <RadzenText TextStyle="TextStyle.Body2">@item.Category: ₹@item.Value.ToString("N2")</RadzenText>
+                        </TooltipTemplate>
+                            <TitleTemplate>
+                                <div class="donut-inner">
+                                    <RadzenText TextStyle="TextStyle.Caption">Total</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.H6">₹@report.TotalIncome.ToString("N0")</RadzenText>
+                                </div>
+                            </TitleTemplate>
+                        </RadzenDonutSeries>
+                        <RadzenLegend Position="LegendPosition.Bottom" />
+                    </RadzenChart>
+                }
+                else
+                {
+                    <div class="no-data">No income data available</div>
+                }
+            </RadzenCard>
+        </RadzenColumn>
+
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard class="glass-card">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-4">Expense Categories (%)</RadzenText>
+                @if (report?.ExpenseByCategory.Any() == true)
+                {
+                    <RadzenChart Style="height: 350px;">
+                        <RadzenDonutSeries Data="@report.ExpenseByCategory" CategoryProperty="Category" ValueProperty="Value" TItem="ChartDataPoint">
+                        <TooltipTemplate Context="item">
+                            <RadzenText TextStyle="TextStyle.Body2">@item.Category: ₹@item.Value.ToString("N2")</RadzenText>
+                        </TooltipTemplate>
+                            <TitleTemplate>
+                                <div class="donut-inner">
+                                    <RadzenText TextStyle="TextStyle.Caption">Total</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.H6">₹@report.TotalExpense.ToString("N0")</RadzenText>
+                                </div>
+                            </TitleTemplate>
+                        </RadzenDonutSeries>
+                        <RadzenLegend Position="LegendPosition.Bottom" />
+                    </RadzenChart>
+                }
+                else
+                {
+                    <div class="no-data">No expense data available</div>
+                }
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <!-- Cashflow Side-by-Side Comparison -->
+    <RadzenCard class="glass-card rz-mt-4">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-4">Comparative Analysis (Current vs Previous)</RadzenText>
+        <RadzenChart Style="height: 350px;">
+            <RadzenColumnSeries Data="@GetComparisonData("Income")" CategoryProperty="Label" ValueProperty="Value" Title="Income" />
+            <RadzenColumnSeries Data="@GetComparisonData("Expense")" CategoryProperty="Label" ValueProperty="Value" Title="Expense" />
+            <RadzenValueAxis>
+                <RadzenGridLines Visible="true" />
+                <RadzenAxisTitle Text="Amount (₹)" />
+            </RadzenValueAxis>
+            <RadzenLegend Position="LegendPosition.Right" />
+        </RadzenChart>
+    </RadzenCard>
+</div>
+}
+
+<style>
+    .loader-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 70vh;
+        width: 100%;
+    }
+    .insights-container {
+        padding: 1.5rem;
+        background: #f8f9fc;
+        min-height: 100vh;
+    }
+
+    .glass-header {
+        background: white;
+        padding: 1.5rem 2rem;
+        border-radius: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: 1px solid rgba(0,0,0,0.02);
+    }
+
+    .icon-circle {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 0.5rem;
+        background: #f1f5f9;
+        padding: 0.4rem;
+        border-radius: 24px;
+    }
+
+    .glass-card {
+        background: white !important;
+        border-radius: 20px !important;
+        border: 1px solid #f1f5f9 !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 20px;
+        border: 1px solid #f1f5f9;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-income { border-top: 4px solid #10b981; }
+    .stat-expense { border-top: 4px solid #ef4444; }
+    .stat-lent { border-top: 4px solid #f59e0b; }
+    .stat-borrowed { border-top: 4px solid #3b82f6; }
+
+    .donut-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .no-data {
+        height: 350px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94a3b8;
+        font-style: italic;
+    }
+
+    .comparison-small {
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .trend-up { color: #10b981; }
+    .trend-down { color: #ef4444; }
+
+    .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+    .animate-slide-down { animation: slideDown 0.3s ease-out; }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private FinancialInsightsReport? report;
+    private FinancialInsightsReport? previousReport;
+    private DateTime? startDate;
+    private DateTime? endDate;
+    private bool showCustomDates = false;
+    private bool compareMode = false;
+    private string errorMessage = "";
+
+    private bool isOverall = true;
+    private bool isYearly = false;
+    private bool isMonthly = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ChangeFilter("overall");
+        }
+    }
+
+    private async Task OnCompareChanged(bool value)
+    {
+        await LoadData();
+    }
+
+    private async Task ChangeFilter(string type)
+    {
+        try 
+        {
+            isOverall = type == "overall";
+            isYearly = type == "year";
+            isMonthly = type == "month";
+            if (type != "custom") showCustomDates = false;
+
+            var now = DateTime.Now;
+
+            switch (type)
+            {
+                case "overall":
+                    startDate = null;
+                    endDate = null;
+                    break;
+                case "year":
+                    startDate = new DateTime(now.Year, 1, 1);
+                    endDate = new DateTime(now.Year, 12, 31);
+                    break;
+                case "month":
+                    startDate = new DateTime(now.Year, now.Month, 1);
+                    endDate = startDate.Value.AddMonths(1).AddDays(-1);
+                    break;
+            }
+
+            if (type != "custom") await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Filter error: {ex.Message}");
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try 
+        {
+            errorMessage = "";
+            report = await ReportService.GetFinancialInsightsAsync(startDate, endDate);
+            
+            if (compareMode && report != null)
+            {
+                DateTime? prevStart = null;
+                DateTime? prevEnd = null;
+
+                if (startDate.HasValue && endDate.HasValue)
+                {
+                    var duration = endDate.Value - startDate.Value;
+                    prevStart = startDate.Value.Subtract(duration.Add(TimeSpan.FromDays(1)));
+                    prevEnd = startDate.Value.AddDays(-1);
+                }
+                else if (!startDate.HasValue)
+                {
+                    previousReport = null;
+                    StateHasChanged();
+                    return;
+                }
+                
+                previousReport = await ReportService.GetFinancialInsightsAsync(prevStart, prevEnd);
+            }
+            else
+            {
+                previousReport = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.WriteLine($"Error loading insights: {ex.Message}");
+            report = new FinancialInsightsReport();
+        }
+        finally 
+        {
+            StateHasChanged();
+        }
+    }
+
+    private List<ComparisonData> GetComparisonData(string type)
+    {
+        var data = new List<ComparisonData>();
+        
+        if (report == null) return data;
+
+        if (type == "Income")
+        {
+            data.Add(new ComparisonData { Label = "Current", Value = report.TotalIncome });
+            if (compareMode && previousReport != null)
+                data.Add(new ComparisonData { Label = "Previous", Value = previousReport.TotalIncome });
+        }
+        else if (type == "Expense")
+        {
+            data.Add(new ComparisonData { Label = "Current", Value = report.TotalExpense });
+            if (compareMode && previousReport != null)
+                data.Add(new ComparisonData { Label = "Previous", Value = previousReport.TotalExpense });
+        }
+        
+        return data;
+    }
+
+    private string GetPercentChange(decimal current, decimal previous)
+    {
+        if (previous == 0) return current > 0 ? "+100" : "0";
+        var change = ((current - previous) / previous) * 100;
+        return (change > 0 ? "+" : "") + change.ToString("F1");
+    }
+
+    private string GetTrendClass(decimal current, decimal previous) => current >= previous ? "trend-up" : "trend-down";
+    private string GetTrendIcon(decimal current, decimal previous) => current >= previous ? "↑" : "↓";
+
+    public class ComparisonData
+    {
+        public string Label { get; set; } = string.Empty;
+        public decimal Value { get; set; }
+    }
+}

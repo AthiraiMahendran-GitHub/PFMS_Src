@@ -1,0 +1,69 @@
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject CategoryService CategoryService
+@inject DialogService DialogService
+
+<EditForm Model="@category" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Category Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@category.Name" Style="width: 100%;" Placeholder="e.g., Food, Transport" />
+            <ValidationMessage For="@(() => category.Name)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Icon (Material Icon Name)" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@category.Icon" Style="width: 100%;" Placeholder="e.g., restaurant, directions_car" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Color (Hex Code)" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@category.Color" Style="width: 100%;" Placeholder="e.g., #4caf50" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@category.Description" Style="width: 100%;" Rows="3" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton ButtonType="ButtonType.Submit" Icon="save" Text="Save" ButtonStyle="ButtonStyle.Primary" />
+            <RadzenButton ButtonType="ButtonType.Button" Icon="cancel" Text="Cancel" ButtonStyle="ButtonStyle.Light" 
+                          Click="@(() => DialogService.Close(null))" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? CategoryId { get; set; }
+    [Parameter] public int? ParentCategoryId { get; set; }
+
+    private ExpenseCategory category = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CategoryId.HasValue)
+        {
+            var existing = await CategoryService.GetCategoryByIdAsync(CategoryId.Value);
+            if (existing != null)
+            {
+                category = existing;
+            }
+        }
+        else if (ParentCategoryId.HasValue)
+        {
+            category.ParentCategoryId = ParentCategoryId.Value;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (CategoryId.HasValue)
+        {
+            await CategoryService.UpdateCategoryAsync(category);
+        }
+        else
+        {
+            await CategoryService.CreateCategoryAsync(category);
+        }
+        DialogService.Close(true);
+    }
+}

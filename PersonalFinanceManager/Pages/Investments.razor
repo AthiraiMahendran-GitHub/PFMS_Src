@@ -1,0 +1,122 @@
+@page "/investments"
+@inject InvestmentService InvestmentService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Investments</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H3" TagName="TagName.H1" class="rz-mb-4">
+    Investment Portfolio
+</RadzenText>
+
+<RadzenCard class="rz-mb-4">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H5">Add New Investment</RadzenText>
+        <RadzenButton Text="Add Investment" Icon="add" Click="@OpenAddDialog" ButtonStyle="ButtonStyle.Primary" />
+    </RadzenStack>
+</RadzenCard>
+
+<RadzenCard>
+    <RadzenDataGrid Data="@investments" TItem="Investment" AllowFiltering="true" AllowSorting="true" 
+                    AllowPaging="true" PageSize="10">
+        <Columns>
+            <RadzenDataGridColumn TItem="Investment" Property="Name" Title="Name" Width="200px" />
+            <RadzenDataGridColumn TItem="Investment" Property="Type" Title="Type" Width="120px" />
+            <RadzenDataGridColumn TItem="Investment" Property="InitialAmount" Title="Initial" Width="120px">
+                <Template Context="inv">
+                    @inv.InitialAmount.ToString("C")
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Investment" Property="CurrentValue" Title="Current" Width="120px">
+                <Template Context="inv">
+                    @((inv.CurrentValue ?? inv.InitialAmount).ToString("C"))
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Investment" Title="Profit/Loss" Width="120px">
+                <Template Context="inv">
+                    <RadzenText Style="@GetProfitLossColor(inv.ProfitLoss)">
+                        @inv.ProfitLoss.ToString("C")
+                    </RadzenText>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Investment" Title="ROI %" Width="100px">
+                <Template Context="inv">
+                    <RadzenText Style="@GetProfitLossColor(inv.ProfitLoss)">
+                        @inv.ROIPercentage.ToString("F2")%
+                    </RadzenText>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Investment" Property="PurchaseDate" Title="Purchase Date" Width="120px">
+                <Template Context="inv">
+                    @inv.PurchaseDate.ToString("yyyy-MM-dd")
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Investment" Title="Actions" Width="150px" Sortable="false" Filterable="false">
+                <Template Context="inv">
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                  Click="@(() => EditInvestment(inv))" class="rz-mr-1" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" 
+                                  Click="@(() => DeleteInvestment(inv))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenCard>
+
+@code {
+    private List<Investment> investments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        investments = await InvestmentService.GetAllAsync();
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var result = await DialogService.OpenAsync<InvestmentDialog>("Add Investment",
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "500px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Investment added successfully");
+        }
+    }
+
+    private async Task EditInvestment(Investment investment)
+    {
+        var result = await DialogService.OpenAsync<InvestmentDialog>("Edit Investment",
+            new Dictionary<string, object> { { "InvestmentId", investment.Id } },
+            new DialogOptions { Width = "500px" });
+
+        if (result != null)
+        {
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Investment updated successfully");
+        }
+    }
+
+    private async Task DeleteInvestment(Investment investment)
+    {
+        var confirm = await DialogService.Confirm("Are you sure?", "Confirm Delete",
+            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+        if (confirm == true)
+        {
+            await InvestmentService.DeleteAsync(investment.Id);
+            await LoadData();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Investment deleted successfully");
+        }
+    }
+
+    private string GetProfitLossColor(decimal value)
+    {
+        return value >= 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;";
+    }
+}

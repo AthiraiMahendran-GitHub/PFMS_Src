@@ -1,0 +1,51 @@
+@inject NoteService NoteService
+@inject DialogService DialogService
+
+<EditForm Model="@note" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Category" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@note.Category" Placeholder="e.g., Personal, Work, Ideas, Journal" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Content" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@note.Content" Rows="15" Placeholder="Write your thoughts here..." />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? NoteId { get; set; }
+
+    private Note note = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (NoteId.HasValue)
+        {
+            var existing = await NoteService.GetByIdAsync(NoteId.Value);
+            if (existing != null)
+                note = existing;
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        if (NoteId.HasValue)
+            await NoteService.UpdateAsync(note);
+        else
+            await NoteService.CreateAsync(note);
+
+        DialogService.Close(true);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(false);
+    }
+}

@@ -1,0 +1,130 @@
+@page "/income"
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject IncomeService IncomeService
+@inject AccountService AccountService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Income</PageTitle>
+
+<div class="card-header-gradient">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="attach_money" Style="font-size: 2rem;" />
+            <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; color: white;">Income</RadzenText>
+        </RadzenStack>
+        <RadzenButton Icon="add_circle" Text="Add Income" ButtonStyle="ButtonStyle.Light" Click="@OpenAddDialog" />
+    </RadzenStack>
+</div>
+
+<RadzenCard class="rz-mt-4">
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="2rem" class="rz-mb-4">
+        <RadzenStack Gap="0.25rem">
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: #666;">Total Income</RadzenText>
+            <RadzenText TextStyle="TextStyle.H5" Style="color: #4caf50; margin: 0;">₹@totalIncome.ToString("N2")</RadzenText>
+        </RadzenStack>
+        <RadzenStack Gap="0.25rem">
+            <RadzenText TextStyle="TextStyle.Caption" Style="color: #666;">This Month</RadzenText>
+            <RadzenText TextStyle="TextStyle.H5" Style="color: #2196f3; margin: 0;">₹@monthlyIncome.ToString("N2")</RadzenText>
+        </RadzenStack>
+    </RadzenStack>
+</RadzenCard>
+
+<RadzenCard class="rz-mt-4">
+    <RadzenDataGrid Data="@incomes" TItem="Data.Income" AllowFiltering="true" AllowSorting="true" AllowPaging="true" PageSize="10">
+        <Columns>
+            <RadzenDataGridColumn TItem="Data.Income" Property="Date" Title="Date" Width="120px">
+                <Template Context="income">
+                    @income.Date.ToString("dd MMM yyyy")
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Data.Income" Property="Source" Title="Source" />
+            <RadzenDataGridColumn TItem="Data.Income" Property="Amount" Title="Amount" Width="150px">
+                <Template Context="income">
+                    <RadzenText TextStyle="TextStyle.Body1" Style="color: #4caf50; font-weight: 600;">
+                        ₹@income.Amount.ToString("N2")
+                    </RadzenText>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Data.Income" Property="ReceivedIn" Title="Received In" Width="150px" />
+            <RadzenDataGridColumn TItem="Data.Income" Property="Description" Title="Description" />
+            <RadzenDataGridColumn TItem="Data.Income" Title="Actions" Width="150px" Sortable="false" Filterable="false">
+                <Template Context="income">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" 
+                                      Click="@(() => OpenEditDialog(income))" />
+                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" 
+                                      Click="@(() => DeleteIncome(income.Id))" />
+                    </RadzenStack>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenCard>
+
+@if (!incomes.Any())
+{
+    <RadzenCard class="rz-mt-4" Style="text-align: center; padding: 3rem;">
+        <RadzenIcon Icon="attach_money" Style="font-size: 4rem; color: #ccc;" />
+        <RadzenText TextStyle="TextStyle.H6" Style="color: #999; margin-top: 1rem;">No income records yet</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="color: #bbb;">Click "Add Income" to record your first income</RadzenText>
+    </RadzenCard>
+}
+
+@code {
+    private List<Data.Income> incomes = new();
+    private decimal totalIncome;
+    private decimal monthlyIncome;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIncomes();
+    }
+
+    private async Task LoadIncomes()
+    {
+        incomes = await IncomeService.GetAllIncomesAsync();
+        totalIncome = await IncomeService.GetTotalIncomeAsync();
+        monthlyIncome = await IncomeService.GetMonthlyIncomeAsync(DateTime.Now.Year, DateTime.Now.Month);
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var result = await DialogService.OpenAsync<IncomeDialog>("Add Income",
+            new Dictionary<string, object>(),
+            new DialogOptions { Width = "600px" });
+
+        if (result != null)
+        {
+            await LoadIncomes();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Income added successfully");
+        }
+    }
+
+    private async Task OpenEditDialog(Data.Income income)
+    {
+        var result = await DialogService.OpenAsync<IncomeDialog>("Edit Income",
+            new Dictionary<string, object> { { "IncomeId", income.Id } },
+            new DialogOptions { Width = "600px" });
+
+        if (result != null)
+        {
+            await LoadIncomes();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Income updated successfully");
+        }
+    }
+
+    private async Task DeleteIncome(int id)
+    {
+        var confirm = await DialogService.Confirm("Are you sure you want to delete this income record?", "Delete Income",
+            new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+        if (confirm == true)
+        {
+            await IncomeService.DeleteIncomeAsync(id);
+            await LoadIncomes();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Income deleted successfully");
+        }
+    }
+}

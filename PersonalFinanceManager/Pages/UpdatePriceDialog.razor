@@ -1,0 +1,93 @@
+@using PersonalFinanceManager.Data
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <EditForm Model="@holding" OnValidSubmit="@HandleSubmit">
+        <DataAnnotationsValidator />
+        
+        <RadzenStack Gap="1rem">
+            <RadzenFormField Text="Stock" Variant="Variant.Outlined">
+                <RadzenTextBox Value="@($"{holding.Symbol} - {holding.Name}")" Disabled="true" Style="width: 100%;" />
+            </RadzenFormField>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Current Price (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric Value="@holding.CurrentPrice" Disabled="true" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="New Current Price (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="newPrice" Min="0" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter">
+                <RadzenStack Gap="0.5rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body2">Quantity:</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1"><strong>@holding.Quantity shares</strong></RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body2">Average Buy Price:</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1">₹@holding.AveragePrice.ToString("N2")</RadzenText>
+                    </RadzenStack>
+                    <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--rz-border-color);" />
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body2">Current Value:</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1">₹@((holding.Quantity * holding.CurrentPrice).ToString("N2"))</RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body2">New Value:</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H6" Style="color: var(--rz-primary);">₹@((holding.Quantity * newPrice).ToString("N2"))</RadzenText>
+                    </RadzenStack>
+                    <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--rz-border-color);" />
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body1"><strong>New Unrealized P/L:</strong></RadzenText>
+                        <RadzenText TextStyle="TextStyle.H6" Style="@GetPLColor()">
+                            ₹@(((newPrice - holding.AveragePrice) * holding.Quantity).ToString("N2"))
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenAlert>
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-3">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" Size="ButtonSize.Medium" />
+                <RadzenButton Text="Update Price" 
+                              ButtonType="ButtonType.Submit" 
+                              ButtonStyle="ButtonStyle.Primary" 
+                              Icon="update"
+                              Size="ButtonSize.Medium" />
+            </RadzenStack>
+        </RadzenStack>
+    </EditForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public InvestmentHolding holding { get; set; } = new();
+    private decimal newPrice;
+
+    protected override void OnInitialized()
+    {
+        newPrice = holding.CurrentPrice;
+    }
+
+    private void HandleSubmit()
+    {
+        holding.CurrentPrice = newPrice;
+        holding.LastUpdated = DateTime.Now;
+        DialogService.Close(holding);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    private string GetPLColor()
+    {
+        var pl = (newPrice - holding.AveragePrice) * holding.Quantity;
+        return pl >= 0 ? "color: var(--rz-success);" : "color: var(--rz-danger);";
+    }
+}

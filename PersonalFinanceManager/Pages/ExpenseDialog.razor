@@ -1,0 +1,126 @@
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject ExpenseService ExpenseService
+@inject CategoryService CategoryService
+@inject AccountService AccountService
+@inject DialogService DialogService
+
+<EditForm Model="@expense" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Amount" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@expense.Amount" Min="0" Step="0.01" Style="width: 100%;" ShowUpDown="false" />
+            <ValidationMessage For="@(() => expense.Amount)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Category" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@expense.Category" Data="@categories" TextProperty="Name" ValueProperty="Name"
+                            Style="width: 100%;" Placeholder="Select Category" AllowFiltering="true"
+                            Change="@OnCategoryChanged" />
+            <ValidationMessage For="@(() => expense.Category)" />
+        </RadzenFormField>
+
+        @if (subCategories.Any())
+        {
+            <RadzenFormField Text="Subcategory (Optional)" Variant="Variant.Outlined">
+                <RadzenDropDown @bind-Value="@expense.SubCategory" Data="@subCategories" TextProperty="Name" ValueProperty="Name"
+                                Style="width: 100%;" Placeholder="Select Subcategory" AllowClear="true" />
+            </RadzenFormField>
+        }
+
+        <RadzenFormField Text="Payment Source" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@expense.AccountId" Data="@accounts" TextProperty="Name" ValueProperty="Id"
+                            Style="width: 100%;" Placeholder="Select Account" AllowClear="true"
+                            Change="@OnAccountChanged" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Date" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@expense.Date" DateFormat="yyyy-MM-dd" Style="width: 100%;" ShowTime="false" />
+            <ValidationMessage For="@(() => expense.Date)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@expense.Description" Rows="3" Style="width: 100%;" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" Icon="cancel" />
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" Icon="save" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? ExpenseId { get; set; }
+
+    private Expense expense = new() { Date = DateTime.Today };
+    private List<ExpenseCategory> categories = new();
+    private List<ExpenseCategory> subCategories = new();
+    private List<Account> accounts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await CategoryService.GetMainCategoriesAsync();
+        accounts = await AccountService.GetAllAccountsAsync();
+        
+        if (ExpenseId.HasValue)
+        {
+            var existing = await ExpenseService.GetByIdAsync(ExpenseId.Value);
+            if (existing != null)
+            {
+                expense = existing;
+                await LoadSubCategories(expense.Category);
+            }
+        }
+    }
+
+    private async Task OnCategoryChanged(object value)
+    {
+        if (value != null)
+        {
+            var categoryName = value.ToString();
+            await LoadSubCategories(categoryName);
+            expense.SubCategory = null;
+        }
+    }
+
+    private async Task LoadSubCategories(string categoryName)
+    {
+        var category = categories.FirstOrDefault(c => c.Name == categoryName);
+        if (category != null)
+        {
+            subCategories = await CategoryService.GetSubCategoriesAsync(category.Id);
+        }
+        else
+        {
+            subCategories.Clear();
+        }
+    }
+
+    private void OnAccountChanged(object value)
+    {
+        if (value != null && int.TryParse(value.ToString(), out int accountId))
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == accountId);
+            if (account != null)
+            {
+                expense.PaymentSource = account.Name;
+            }
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        if (ExpenseId.HasValue)
+            await ExpenseService.UpdateAsync(expense);
+        else
+            await ExpenseService.CreateAsync(expense);
+
+        DialogService.Close(true);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(false);
+    }
+}

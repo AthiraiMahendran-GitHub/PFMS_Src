@@ -1,0 +1,177 @@
+@page "/register"
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@layout EmptyLayout
+@inject NavigationManager NavigationManager
+@inject UserService UserService
+@inject NotificationService NotificationService
+
+<PageTitle>Register</PageTitle>
+
+<div class="register-container">
+    <RadzenCard class="register-card">
+        <RadzenStack Gap="2rem">
+
+            <!-- Header -->
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="account_balance_wallet" Style="font-size: 4rem; color: var(--rz-primary);" />
+                <RadzenText TextStyle="TextStyle.H4">Create Account</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">
+                    Start managing your finances
+                </RadzenText>
+            </RadzenStack>
+
+            <!-- Form -->
+            <EditForm Model="@registerModel" OnValidSubmit="@HandleRegister">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <RadzenStack Gap="1.5rem">
+
+                    <RadzenFormField Text="Full Name">
+                        <RadzenTextBox @bind-Value="registerModel.FullName" Style="width:100%" />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text="Email">
+                        <RadzenTextBox @bind-Value="registerModel.Email" Style="width:100%" />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text="Username">
+                        <RadzenTextBox @bind-Value="registerModel.Username" Style="width:100%" />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text="Password">
+                        <RadzenPassword @bind-Value="registerModel.Password" Style="width:100%" />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text="Confirm Password">
+                        <RadzenPassword @bind-Value="registerModel.ConfirmPassword" Style="width:100%" />
+                    </RadzenFormField>
+
+                    <!-- Checkbox (FIXED with Standard Input) -->
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.8rem" Style="margin-top: 0.5rem;">
+                        <div style="display: flex; align-items: center;">
+                            <InputCheckbox @bind-Value="registerModel.AcceptTerms" id="acceptTerms" style="width: 18px; height: 18px; cursor: pointer;" />
+                        </div>
+                        <label for="acceptTerms" style="cursor:pointer; font-size: 0.9rem; color: #666;">
+                            I agree to Terms & Privacy Policy
+                        </label>
+                    </RadzenStack>
+
+                    <!-- Messages -->
+                    @if (!string.IsNullOrEmpty(message))
+                    {
+                        <RadzenAlert Severity="NotificationSeverity.Warning" Variant="Variant.Flat" Shade="Shade.Lighter">
+                            @message
+                        </RadzenAlert>
+                    }
+
+                    <RadzenButton Text="Register"
+                                  ButtonType="ButtonType.Submit"
+                                  Style="width:100%" />
+
+                    <RadzenText>
+                        Already have account?
+                        <RadzenLink Path="/login">Login</RadzenLink>
+                    </RadzenText>
+
+                </RadzenStack>
+            </EditForm>
+
+        </RadzenStack>
+    </RadzenCard>
+</div>
+
+<style>
+    .register-container {
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg,#667eea,#764ba2);
+    }
+
+    .register-card {
+        width: 100%;
+        max-width: 450px;
+        padding: 2rem;
+    }
+</style>
+
+@code {
+    private RegisterModel registerModel = new();
+    private string message;
+
+    private async Task HandleRegister()
+    {
+        message = string.Empty;
+
+        // Password match check
+        if (registerModel.Password != registerModel.ConfirmPassword)
+        {
+            message = "Passwords do not match";
+            return;
+        }
+
+        if (!registerModel.AcceptTerms)
+        {
+            message = "You must agree to the terms and privacy policy";
+            return;
+        }
+
+        try
+        {
+            var user = await UserService.RegisterUserAsync(
+                registerModel.FullName,
+                registerModel.Email,
+                registerModel.Username,
+                registerModel.Password
+            );
+
+            if (user != null)
+            {
+                message = "Registration successful! Redirecting to login...";
+                NotificationService.Notify(new NotificationMessage
+                {
+                    Severity = NotificationSeverity.Success,
+                    Summary = "Success",
+                    Detail = "Registration successful! You can now login."
+                });
+                
+                await Task.Delay(2000);
+                NavigationManager.NavigateTo("/login");
+            }
+            else
+            {
+                message = "Username or Email already exists. Please try another one.";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}";
+        }
+    }
+
+    public class RegisterModel
+    {
+        [Required(ErrorMessage = "Full Name required")]
+        public string FullName { get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+
+        [Required]
+        public string Username { get; set; }
+
+        [Required]
+        [MinLength(6, ErrorMessage = "Minimum 6 characters")]
+        public string Password { get; set; }
+
+        [Required]
+        public string ConfirmPassword { get; set; }
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "Accept terms required")]
+        public bool AcceptTerms { get; set; }
+    }
+}

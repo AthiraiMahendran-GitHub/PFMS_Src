@@ -1,0 +1,278 @@
+@page "/"
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject ReportService ReportService
+@inject AccountService AccountService
+@inject IncomeService IncomeService
+
+<PageTitle>Dashboard</PageTitle>
+
+
+
+<RadzenStack Gap="1.5rem">
+    <RadzenText TextStyle="TextStyle.H3" TagName="TagName.H1">
+        <RadzenIcon Icon="dashboard" /> Dashboard
+    </RadzenText>
+
+    @if (summary != null)
+    {
+        <!-- Account Balances -->
+        <RadzenCard class="rz-shadow-hover">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.H5">
+                    <RadzenIcon Icon="account_balance_wallet" /> Account Balances
+                </RadzenText>
+                <RadzenButton Text="Manage Accounts" Icon="settings" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Click="@(() => NavigateTo("/accounts"))" />
+            </RadzenStack>
+            <RadzenRow Gap="1rem">
+                @foreach (var account in accounts)
+                {
+                    <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                        <RadzenCard Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <RadzenStack Gap="0.25rem">
+                                <RadzenText TextStyle="TextStyle.Caption">@account.Name</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@account.Balance.ToString("N2")</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Style="opacity: 0.9;">@account.Type.ToString()</RadzenText>
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
+                }
+                @if (!accounts.Any())
+                {
+                    <RadzenColumn Size="12">
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat">
+                            No accounts yet. <RadzenLink Path="/accounts" Text="Add your first account" />
+                        </RadzenAlert>
+                    </RadzenColumn>
+                }
+            </RadzenRow>
+        </RadzenCard>
+
+        <!-- Income & Expense Overview -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card" Style="border-left-color: #4caf50;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Monthly Income</RadzenText>
+                            <RadzenIcon Icon="attach_money" Style="color: #4caf50; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" Style="color: #4caf50;">₹@monthlyIncome.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">This month</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card expense">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Today's Expenses</RadzenText>
+                            <RadzenIcon Icon="payments" Style="color: #f44336; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" class="rz-color-danger">₹@summary.TotalExpensesToday.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">This Month: ₹@summary.TotalExpensesThisMonth.ToString("N2")</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card expense">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">This Year</RadzenText>
+                            <RadzenIcon Icon="calendar_today" Style="color: #f44336; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" class="rz-color-danger">₹@summary.TotalExpensesThisYear.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">Total expenses YTD</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card" Style="border-left-color: #2196f3;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Net Savings</RadzenText>
+                            <RadzenIcon Icon="savings" Style="color: #2196f3; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" Style="@GetSavingsStyle(monthlyIncome - summary.TotalExpensesThisMonth)">
+                            ₹@((monthlyIncome - summary.TotalExpensesThisMonth).ToString("N2"))
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">This month</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Financial Overview -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card expense">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Today's Expenses</RadzenText>
+                            <RadzenIcon Icon="payments" Style="color: #f44336; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" class="rz-color-danger">₹@summary.TotalExpensesToday.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">This Month: ₹@summary.TotalExpensesThisMonth.ToString("N2")</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card expense">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">This Year</RadzenText>
+                            <RadzenIcon Icon="calendar_today" Style="color: #f44336; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" class="rz-color-danger">₹@summary.TotalExpensesThisYear.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">Total expenses YTD</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card investment">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Portfolio Value</RadzenText>
+                            <RadzenIcon Icon="trending_up" Style="color: #4caf50; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4" Style="color: #4caf50;">₹@summary.TotalCurrentValue.ToString("N2")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="@($"color: {GetProfitLossColor(summary.TotalProfitLoss)};")">
+                            ₹@summary.TotalProfitLoss.ToString("N2") (@summary.ROIPercentage.ToString("F1")%)
+                        </RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <div class="dashboard-card note">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText TextStyle="TextStyle.Overline" class="rz-color-secondary">Notes</RadzenText>
+                            <RadzenIcon Icon="note" Style="color: #ff9800; font-size: 24px;" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.H4">@summary.TotalNotes</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" Style="color: #999;">@summary.NotesToday added today</RadzenText>
+                    </RadzenStack>
+                </div>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Investment & Tasks Overview -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenCard class="rz-shadow-hover">
+                    <div class="card-header-gradient">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenIcon Icon="account_balance" />
+                            <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">Investment Portfolio</RadzenText>
+                        </RadzenStack>
+                    </div>
+                    <RadzenStack Gap="1rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                            <RadzenText>Total Invested:</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H6">₹@summary.TotalInvested.ToString("N2")</RadzenText>
+                        </RadzenStack>
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                            <RadzenText>Current Value:</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H6">₹@summary.TotalCurrentValue.ToString("N2")</RadzenText>
+                        </RadzenStack>
+                        <div style="height: 2px; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); margin: 0.5rem 0;"></div>
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                            <RadzenText Style="font-weight: 600;">Profit/Loss:</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H6" Style="@GetProfitLossStyle(summary.TotalProfitLoss)">
+                                ₹@summary.TotalProfitLoss.ToString("N2") (@summary.ROIPercentage.ToString("F2")%)
+                            </RadzenText>
+                        </RadzenStack>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenCard class="rz-shadow-hover">
+                    <div class="card-header-gradient">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenIcon Icon="task_alt" />
+                            <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">Task Overview</RadzenText>
+                        </RadzenStack>
+                    </div>
+                    <RadzenStack Gap="1rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText>Pending Tasks:</RadzenText>
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="@summary.PendingTasks.ToString()" Style="font-size: 16px; padding: 0.5rem 1rem;" />
+                        </RadzenStack>
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText>Completed Today:</RadzenText>
+                            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@summary.CompletedTasksToday.ToString()" Style="font-size: 16px; padding: 0.5rem 1rem;" />
+                        </RadzenStack>
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                            <RadzenText>Overdue:</RadzenText>
+                            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@summary.OverdueTasks.ToString()" Style="font-size: 16px; padding: 0.5rem 1rem;" />
+                        </RadzenStack>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Quick Actions -->
+        <RadzenCard class="rz-shadow-hover">
+            <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">
+                <RadzenIcon Icon="bolt" /> Quick Actions
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="Add Account" Icon="account_balance" Click="@(() => NavigateTo("/accounts"))" ButtonStyle="ButtonStyle.Info" />
+                <RadzenButton Text="Add Income" Icon="attach_money" Click="@(() => NavigateTo("/income"))" ButtonStyle="ButtonStyle.Success" />
+                <RadzenButton Text="Add Expense" Icon="add_circle" Click="@(() => NavigateTo("/expenses"))" ButtonStyle="ButtonStyle.Primary" />
+                <RadzenButton Text="Add Investment" Icon="trending_up" Click="@(() => NavigateTo("/investments"))" ButtonStyle="ButtonStyle.Success" />
+                <RadzenButton Text="Manage Loans" Icon="swap_horiz" Click="@(() => NavigateTo("/loans"))" ButtonStyle="ButtonStyle.Warning" />
+                <RadzenButton Text="Add Task" Icon="task" Click="@(() => NavigateTo("/tasks"))" ButtonStyle="ButtonStyle.Info" />
+                <RadzenButton Text="Add Note" Icon="note_add" Click="@(() => NavigateTo("/notes"))" ButtonStyle="ButtonStyle.Warning" />
+                <RadzenButton Text="View Reports" Icon="assessment" Click="@(() => NavigateTo("/reports"))" ButtonStyle="ButtonStyle.Secondary" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private DashboardSummary? summary;
+    private List<Account> accounts = new();
+    private decimal monthlyIncome;
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        summary = await ReportService.GetDashboardSummaryAsync();
+        accounts = await AccountService.GetAllAccountsAsync();
+        monthlyIncome = await IncomeService.GetMonthlyIncomeAsync(DateTime.Now.Year, DateTime.Now.Month);
+    }
+
+    private string GetProfitLossColor(decimal value)
+    {
+        return value >= 0 ? "#4caf50" : "#f44336";
+    }
+
+    private string GetProfitLossStyle(decimal value)
+    {
+        return value >= 0 ? "color: #4caf50; font-weight: bold;" : "color: #f44336; font-weight: bold;";
+    }
+
+    private string GetSavingsStyle(decimal value)
+    {
+        return value >= 0 ? "color: #2196f3; font-weight: bold;" : "color: #f44336; font-weight: bold;";
+    }
+
+    private void NavigateTo(string url)
+    {
+        NavigationManager.NavigateTo(url);
+    }
+}

@@ -1,0 +1,124 @@
+@using PersonalFinanceManager.Data
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <EditForm Model="@transaction" OnValidSubmit="@HandleSubmit">
+        <DataAnnotationsValidator />
+        
+        <RadzenStack Gap="1rem">
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                    <RadzenText TextStyle="TextStyle.Body1"><strong>Current Holding:</strong></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1">
+                        @holding.Quantity shares (avg ₹@holding.AveragePrice.ToString("N2"))
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenAlert>
+
+            <RadzenFormField Text="Stock" Variant="Variant.Outlined">
+                <RadzenTextBox Value="@($"{holding.Symbol} - {holding.Name}")" Disabled="true" Style="width: 100%;" />
+            </RadzenFormField>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Quantity to Sell" Variant="Variant.Outlined">
+                        <ChildContent>
+                            <RadzenNumeric @bind-Value="transaction.Quantity" Min="0" Max="@holding.Quantity" Style="width: 100%;" ShowUpDown="false" />
+                        </ChildContent>
+                        <Helper>
+                            <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-text-secondary-color);">
+                                Max: @holding.Quantity shares
+                            </RadzenText>
+                        </Helper>
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Selling Price per Share (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="transaction.Price" Min="0" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Transaction Date" Variant="Variant.Outlined">
+                        <RadzenDatePicker @bind-Value="transaction.TransactionDate" DateFormat="dd/MM/yyyy" Style="width: 100%;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Brokerage Fee (₹)" Variant="Variant.Outlined">
+                        <RadzenNumeric @bind-Value="transaction.BrokerageCharges" Min="0" Format="0.00" Style="width: 100%;" ShowUpDown="false" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenFormField Text="Notes (Optional)" Variant="Variant.Outlined">
+                <RadzenTextArea @bind-Value="transaction.Notes" Rows="2" Placeholder="Add any notes about this sale..." Style="width: 100%;" />
+            </RadzenFormField>
+
+            <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter">
+                <RadzenStack Gap="0.5rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body1"><strong>Sale Amount:</strong></RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1">
+                            ₹@((transaction.Quantity * transaction.Price - transaction.BrokerageCharges).ToString("N2"))
+                        </RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenText TextStyle="TextStyle.Body1"><strong>Estimated P/L:</strong></RadzenText>
+                        <RadzenText TextStyle="TextStyle.H6" Style="@GetPLColor()">
+                            ₹@(((transaction.Price - holding.AveragePrice) * transaction.Quantity - transaction.BrokerageCharges).ToString("N2"))
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenAlert>
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-3">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" Size="ButtonSize.Medium" />
+                <RadzenButton Text="Sell Stock" 
+                              ButtonType="ButtonType.Submit" 
+                              ButtonStyle="ButtonStyle.Danger" 
+                              Icon="sell"
+                              Size="ButtonSize.Medium" />
+            </RadzenStack>
+        </RadzenStack>
+    </EditForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public InvestmentHolding holding { get; set; } = new();
+    [Parameter] public InvestmentTransaction transaction { get; set; } = new() 
+    { 
+        Action = TransactionAction.Sell,
+        TransactionDate = DateTime.Now
+    };
+
+    protected override void OnInitialized()
+    {
+        transaction.Symbol = holding.Symbol;
+        transaction.Name = holding.Name;
+        transaction.DematAccountId = holding.DematAccountId;
+        transaction.Type = holding.Type;
+        transaction.HoldingId = holding.Id;
+    }
+
+    private void HandleSubmit()
+    {
+        if (transaction.Quantity > holding.Quantity)
+        {
+            return;
+        }
+        DialogService.Close(transaction);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    private string GetPLColor()
+    {
+        var pl = (transaction.Price - holding.AveragePrice) * transaction.Quantity - transaction.BrokerageCharges;
+        return pl >= 0 ? "color: var(--rz-success);" : "color: var(--rz-danger);";
+    }
+}

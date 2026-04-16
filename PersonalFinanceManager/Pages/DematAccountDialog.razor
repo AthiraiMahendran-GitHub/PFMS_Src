@@ -1,0 +1,50 @@
+@using PersonalFinanceManager.Data
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <EditForm Model="@account" OnValidSubmit="@HandleSubmit">
+        <DataAnnotationsValidator />
+        
+        <RadzenStack Gap="1rem">
+            <RadzenFormField Text="Account Name" Variant="Variant.Outlined">
+                <RadzenTextBox @bind-Value="account.Name" Placeholder="e.g., Zerodha, Upstox" Style="width: 100%;" />
+            </RadzenFormField>
+
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Broker Name" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="account.BrokerName" Placeholder="e.g., Zerodha" Style="width: 100%;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenFormField Text="Account Number" Variant="Variant.Outlined">
+                        <RadzenTextBox @bind-Value="account.AccountNumber" Placeholder="Account Number" Style="width: 100%;" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-4">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" Size="ButtonSize.Medium" />
+                <RadzenButton Text="@(account.Id == 0 ? "Create Account" : "Update Account")" 
+                              ButtonType="ButtonType.Submit" 
+                              ButtonStyle="ButtonStyle.Primary" 
+                              Icon="@(account.Id == 0 ? "add_circle" : "save")"
+                              Size="ButtonSize.Medium" />
+            </RadzenStack>
+        </RadzenStack>
+    </EditForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public DematAccount account { get; set; } = new();
+
+    private void HandleSubmit()
+    {
+        DialogService.Close(account);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+}

@@ -1,0 +1,390 @@
+@page "/portfolio"
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject DematAccountService DematAccountService
+@inject InvestmentTransactionService TransactionService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Investment Portfolio</PageTitle>
+
+<div class="card-header-gradient">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="account_balance_wallet" Style="font-size: 2rem;" />
+            <RadzenText TextStyle="TextStyle.H4" Style="margin: 0; color: white;">Investment Portfolio</RadzenText>
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Icon="add_circle" Text="Add Demat Account" ButtonStyle="ButtonStyle.Light" Click="@OpenAddDematDialog" />
+            <RadzenButton Icon="refresh" Text="Refresh" ButtonStyle="ButtonStyle.Light" Click="@LoadData" />
+        </RadzenStack>
+    </RadzenStack>
+</div>
+
+<!-- Demat Account Selector -->
+<RadzenCard class="rz-mt-4">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+        <RadzenText TextStyle="TextStyle.H6">Select Demat Account:</RadzenText>
+        <RadzenDropDown @bind-Value="@selectedDematAccountId" Data="@dematAccounts" TextProperty="Name" ValueProperty="Id"
+                        Style="width: 300px;" Change="@OnDematAccountChanged" Placeholder="Select Account" />
+    </RadzenStack>
+</RadzenCard>
+
+@if (selectedDematAccountId.HasValue)
+{
+    <!-- Portfolio Summary -->
+    <RadzenRow Gap="1rem" class="rz-mt-4">
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); color: white;">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Caption">Total Invested</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@totalInvested.ToString("N2")</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white;">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Caption">Current Value</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@currentValue.ToString("N2")</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="@GetProfitLossCardStyle()">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Caption">Unrealized P/L</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">
+                        @GetProfitLossPrefix()₹@(Math.Abs(unrealizedPL).ToString("N2"))
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2">@(unrealizedPLPercentage.ToString("F2"))%</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); color: white;">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.Caption">Realized P/L</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">₹@realizedPL.ToString("N2")</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <!-- Action Buttons -->
+    <RadzenCard class="rz-mt-4">
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+            <RadzenButton Icon="add_shopping_cart" Text="Buy Stock" ButtonStyle="ButtonStyle.Success" Click="@OpenBuyDialog" />
+            <RadzenButton Icon="sell" Text="Sell Stock" ButtonStyle="ButtonStyle.Danger" Click="@OpenSellDialog" />
+            <RadzenButton Icon="history" Text="Transaction History" ButtonStyle="ButtonStyle.Info" Click="@ShowTransactionHistory" />
+            <RadzenButton Icon="update" Text="Update Prices" ButtonStyle="ButtonStyle.Warning" Click="@UpdatePrices" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- Holdings -->
+    <RadzenCard class="rz-mt-4">
+        <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">
+            <RadzenIcon Icon="inventory" /> Current Holdings
+        </RadzenText>
+        
+        <RadzenDataGrid Data="@holdings" TItem="InvestmentHolding" AllowSorting="true" AllowPaging="true" PageSize="10">
+            <Columns>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="Symbol" Title="Symbol" Width="120px" />
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="Name" Title="Name" />
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="Type" Title="Type" Width="120px">
+                    <Template Context="holding">
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@holding.Type.ToString()" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="Quantity" Title="Quantity" Width="100px">
+                    <Template Context="holding">
+                        @holding.Quantity.ToString("N2")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="AveragePrice" Title="Avg Price" Width="120px">
+                    <Template Context="holding">
+                        ₹@holding.AveragePrice.ToString("N2")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="CurrentPrice" Title="Current Price" Width="120px">
+                    <Template Context="holding">
+                        ₹@holding.CurrentPrice.ToString("N2")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="TotalInvested" Title="Invested" Width="120px">
+                    <Template Context="holding">
+                        ₹@holding.TotalInvested.ToString("N2")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="CurrentValue" Title="Current Value" Width="120px">
+                    <Template Context="holding">
+                        ₹@holding.CurrentValue.ToString("N2")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Property="UnrealizedProfitLoss" Title="P/L" Width="150px">
+                    <Template Context="holding">
+                        <RadzenText Style="@GetPLStyle(holding.UnrealizedProfitLoss)">
+                            @GetPLPrefix(holding.UnrealizedProfitLoss)₹@(Math.Abs(holding.UnrealizedProfitLoss).ToString("N2"))
+                            (@(holding.UnrealizedProfitLossPercentage.ToString("F2"))%)
+                        </RadzenText>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="InvestmentHolding" Title="Actions" Width="150px" Sortable="false">
+                    <Template Context="holding">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                            <RadzenButton Icon="sell" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" 
+                                          Click="@(() => OpenSellDialogForHolding(holding))" Text="Sell" />
+                            <RadzenButton Icon="update" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" 
+                                          Click="@(() => UpdatePrice(holding))" />
+                        </RadzenStack>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+    @if (!holdings.Any())
+    {
+        <RadzenCard class="rz-mt-4" Style="text-align: center; padding: 3rem;">
+            <RadzenIcon Icon="inventory_2" Style="font-size: 4rem; color: #ccc;" />
+            <RadzenText TextStyle="TextStyle.H6" Style="color: #999; margin-top: 1rem;">No holdings yet</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2" Style="color: #bbb;">Click "Buy Stock" to add your first investment</RadzenText>
+        </RadzenCard>
+    }
+}
+else
+{
+    <RadzenCard class="rz-mt-4" Style="text-align: center; padding: 3rem;">
+        <RadzenIcon Icon="account_balance_wallet" Style="font-size: 4rem; color: #ccc;" />
+        <RadzenText TextStyle="TextStyle.H6" Style="color: #999; margin-top: 1rem;">No Demat Account</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="color: #bbb;">Create a Demat Account to start managing your investments</RadzenText>
+        <RadzenButton Text="Add Demat Account" Icon="add" Click="@OpenAddDematDialog" ButtonStyle="ButtonStyle.Primary" class="rz-mt-3" />
+    </RadzenCard>
+}
+
+@code {
+    private List<DematAccount> dematAccounts = new();
+    private int? selectedDematAccountId;
+    private List<InvestmentHolding> holdings = new();
+    
+    private decimal totalInvested;
+    private decimal currentValue;
+    private decimal unrealizedPL;
+    private decimal unrealizedPLPercentage;
+    private decimal realizedPL;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        dematAccounts = await DematAccountService.GetAllAsync();
+        
+        if (dematAccounts.Any() && !selectedDematAccountId.HasValue)
+        {
+            selectedDematAccountId = dematAccounts.First().Id;
+        }
+        
+        if (selectedDematAccountId.HasValue)
+        {
+            await LoadPortfolioData();
+        }
+    }
+
+    private async Task OnDematAccountChanged()
+    {
+        if (selectedDematAccountId.HasValue)
+        {
+            await LoadPortfolioData();
+        }
+    }
+
+    private async Task LoadPortfolioData()
+    {
+        if (!selectedDematAccountId.HasValue) return;
+        
+        holdings = await DematAccountService.GetHoldingsAsync(selectedDematAccountId.Value);
+        totalInvested = await DematAccountService.GetTotalInvestedAsync(selectedDematAccountId.Value);
+        currentValue = await DematAccountService.GetCurrentValueAsync(selectedDematAccountId.Value);
+        unrealizedPL = await DematAccountService.GetTotalProfitLossAsync(selectedDematAccountId.Value);
+        unrealizedPLPercentage = totalInvested > 0 ? (unrealizedPL / totalInvested) * 100 : 0;
+        realizedPL = await TransactionService.GetTotalRealizedProfitLossAsync(selectedDematAccountId.Value);
+    }
+
+    private async Task OpenAddDematDialog()
+    {
+        var account = new DematAccount();
+        var result = await DialogService.OpenAsync<DematAccountDialog>("Add Demat Account",
+            new Dictionary<string, object> { { "account", account } },
+            new DialogOptions { Width = "600px" });
+
+        if (result != null)
+        {
+            await DematAccountService.CreateAsync((DematAccount)result);
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Demat account created successfully");
+            await LoadData();
+        }
+    }
+
+    private async Task OpenBuyDialog()
+    {
+        if (!selectedDematAccountId.HasValue)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "Please select a Demat account first");
+            return;
+        }
+
+        var transaction = new InvestmentTransaction { DematAccountId = selectedDematAccountId.Value };
+        var result = await DialogService.OpenAsync<BuyStockDialog>("Buy Stock",
+            new Dictionary<string, object> { { "transaction", transaction } },
+            new DialogOptions { Width = "700px" });
+
+        if (result != null)
+        {
+            await TransactionService.BuyStockAsync((InvestmentTransaction)result);
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Stock purchased successfully");
+            await LoadPortfolioData();
+        }
+    }
+
+    private async Task OpenSellDialog()
+    {
+        if (!selectedDematAccountId.HasValue)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "Please select a Demat account first");
+            return;
+        }
+
+        if (!holdings.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "No holdings to sell");
+            return;
+        }
+
+        // For now, just show a message to select from holdings table
+        NotificationService.Notify(NotificationSeverity.Info, "Info", "Please use the Sell button next to a holding in the table");
+    }
+
+    private async Task OpenSellDialogForHolding(InvestmentHolding holding)
+    {
+        var transaction = new InvestmentTransaction { DematAccountId = holding.DematAccountId };
+        var result = await DialogService.OpenAsync<SellStockDialog>("Sell Stock",
+            new Dictionary<string, object> 
+            { 
+                { "holding", holding },
+                { "transaction", transaction }
+            },
+            new DialogOptions { Width = "700px" });
+
+        if (result != null)
+        {
+            await TransactionService.SellStockAsync((InvestmentTransaction)result);
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Stock sold successfully");
+            await LoadPortfolioData();
+        }
+    }
+
+    private async Task ShowTransactionHistory()
+    {
+        if (!selectedDematAccountId.HasValue)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "Please select a Demat account first");
+            return;
+        }
+
+        var transactions = await TransactionService.GetTransactionsByAccountAsync(selectedDematAccountId.Value);
+        
+        await DialogService.OpenAsync("Transaction History",
+            ds => @<div>
+                <RadzenDataGrid Data="@transactions" TItem="InvestmentTransaction" AllowSorting="true" AllowPaging="true" PageSize="20">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="TransactionDate" Title="Date" Width="120px">
+                            <Template Context="tx">
+                                @tx.TransactionDate.ToString("dd MMM yyyy")
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="Action" Title="Type" Width="80px">
+                            <Template Context="tx">
+                                <RadzenBadge BadgeStyle="@(tx.Action == TransactionAction.Buy ? BadgeStyle.Success : BadgeStyle.Danger)" Text="@tx.Action.ToString()" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="Symbol" Title="Symbol" Width="100px" />
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="Name" Title="Name" />
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="Quantity" Title="Qty" Width="80px" />
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="Price" Title="Price" Width="100px">
+                            <Template Context="tx">
+                                ₹@tx.Price.ToString("N2")
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="TotalAmount" Title="Total" Width="120px">
+                            <Template Context="tx">
+                                ₹@tx.TotalAmount.ToString("N2")
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="InvestmentTransaction" Property="RealizedProfitLoss" Title="Realized P/L" Width="120px">
+                            <Template Context="tx">
+                                @if (tx.Action == TransactionAction.Sell && tx.RealizedProfitLoss.HasValue)
+                                {
+                                    <span style="@GetPLStyle(tx.RealizedProfitLoss.Value)">
+                                        @GetPLPrefix(tx.RealizedProfitLoss.Value)₹@(Math.Abs(tx.RealizedProfitLoss.Value).ToString("N2"))
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </div>,
+            new DialogOptions { Width = "1200px", Height = "600px" });
+    }
+
+    private async Task UpdatePrices()
+    {
+        if (!selectedDematAccountId.HasValue || !holdings.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "No holdings to update");
+            return;
+        }
+
+        NotificationService.Notify(NotificationSeverity.Info, "Info", "Use the update button next to each holding to update prices individually");
+    }
+
+    private async Task UpdatePrice(InvestmentHolding holding)
+    {
+        var result = await DialogService.OpenAsync<UpdatePriceDialog>($"Update Price - {holding.Symbol}",
+            new Dictionary<string, object> { { "holding", holding } },
+            new DialogOptions { Width = "500px" });
+
+        if (result != null)
+        {
+            var updatedHolding = (InvestmentHolding)result;
+            await DematAccountService.UpdateHoldingAsync(updatedHolding);
+            NotificationService.Notify(NotificationSeverity.Success, "Success", $"Price updated for {holding.Symbol}");
+            await LoadPortfolioData();
+        }
+    }
+
+    private string GetProfitLossCardStyle()
+    {
+        var color = unrealizedPL >= 0 ? "#4caf50, #45a049" : "#f44336, #e91e63";
+        return $"background: linear-gradient(135deg, {color}); color: white;";
+    }
+
+    private string GetProfitLossPrefix() => unrealizedPL >= 0 ? "+" : "-";
+    
+    private string GetPLPrefix(decimal pl) => pl >= 0 ? "+" : "-";
+    
+    private string GetPLStyle(decimal pl)
+    {
+        var color = pl >= 0 ? "#4caf50" : "#f44336";
+        return $"font-weight: 600; color: {color};";
+    }
+}

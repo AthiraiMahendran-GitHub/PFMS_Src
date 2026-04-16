@@ -1,0 +1,52 @@
+PORTFOLIO PAGE ERROR - QUICK FIX
+================================
+
+The error "no such table: DematAccounts" means the database needs to be recreated.
+
+FOLLOW THESE STEPS:
+
+1. STOP THE APPLICATION
+   - Open Task Manager (Ctrl + Shift + Esc)
+   - Find "PersonalFinanceManager" (Process ID: 35708)
+   - Right-click → End Task
+   
+   OR
+   
+   - Run: stop.bat
+
+2. RUN THE REBUILD SCRIPT
+   - Double-click: rebuild-database.bat
+   
+   This will:
+   - Stop any running instances
+   - Delete old database
+   - Clean and rebuild
+   - Run the application with new database
+
+3. TEST THE PORTFOLIO PAGE
+   - Open browser: http://localhost:55891
+   - Click "Portfolio" in sidebar
+   - Should work now!
+
+THAT'S IT! The database will be recreated with all new tables.
+
+---
+
+ALTERNATIVE (Manual):
+1. Stop the app (Task Manager or stop.bat)
+2. Delete: PersonalFinanceManager\personalfinance.db*
+3. Delete: PersonalFinanceManager\bin\Debug\net8.0\personalfinance.db*
+4. Run: cd PersonalFinanceManager
+5. Run: dotnet clean
+6. Run: dotnet build
+7. Run: dotnet run
+
+---
+
+WHY THIS HAPPENS:
+The database was created before we added the new investment tables.
+Deleting it forces the app to recreate it with the new schema.
+
+YOUR DATA:
+Don't worry! If you haven't added any data yet, there's nothing to lose.
+If you have data, we can migrate it later.

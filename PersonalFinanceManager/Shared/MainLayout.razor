@@ -1,0 +1,54 @@
+@inherits LayoutComponentBase
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+            <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
+            <RadzenLabel Text="Personal Finance Manager" Style="font-size: 1.5rem; font-weight: bold; margin-left: 1rem;" />
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Style="margin-left: auto; margin-right: 1.5rem;">
+                <AuthorizeView>
+                    <Authorized>
+                        <RadzenText Style="margin: 0; color: var(--rz-header-color);">Hello, @context.User.Identity?.Name</RadzenText>
+                        <RadzenButton Icon="logout" Text="Logout" Click="@Logout" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat" />
+                    </Authorized>
+                </AuthorizeView>
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenHeader>
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded">
+        <RadzenPanelMenu>
+            <RadzenPanelMenuItem Text="Dashboard" Icon="dashboard" Path="/" />
+            <RadzenPanelMenuItem Text="Accounts" Icon="account_balance" Path="/accounts" />
+            <RadzenPanelMenuItem Text="Income" Icon="attach_money" Path="/income" />
+            <RadzenPanelMenuItem Text="Expenses" Icon="payments" Path="/expenses" />
+            <RadzenPanelMenuItem Text="Categories" Icon="category" Path="/categories" />
+            <RadzenPanelMenuItem Text="Transactions" Icon="history" Path="/transactions" />
+            <RadzenPanelMenuItem Text="Portfolio" Icon="account_balance_wallet" Path="/portfolio" />
+            <RadzenPanelMenuItem Text="Investments (Old)" Icon="trending_up" Path="/investments" />
+            <RadzenPanelMenuItem Text="Loans" Icon="swap_horiz" Path="/loans" />
+            <RadzenPanelMenuItem Text="Tasks" Icon="task" Path="/tasks" />
+            <RadzenPanelMenuItem Text="Notes" Icon="note" Path="/notes" />
+            <RadzenPanelMenuItem Text="Reports" Icon="assessment" Path="/reports" />
+            <RadzenPanelMenuItem Text="Insights" Icon="insights" Path="/insights" />
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+    <RadzenBody>
+        <div class="rz-p-4">
+            @Body
+        </div>
+    </RadzenBody>
+</RadzenLayout>
+
+@code {
+    bool sidebarExpanded = true;
+
+    private async Task Logout()
+    {
+        var customAuthStateProvider = (CustomAuthenticationStateProvider)AuthStateProvider;
+        await customAuthStateProvider.UpdateAuthenticationState(null);
+        NavigationManager.NavigateTo("login");
+    }
+}

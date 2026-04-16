@@ -1,0 +1,80 @@
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject AccountService AccountService
+@inject DialogService DialogService
+
+<EditForm Model="@account" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Account Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@account.Name" Style="width: 100%;" Placeholder="e.g., HDFC Bank" />
+            <ValidationMessage For="@(() => account.Name)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Account Type" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@account.Type" Data="@accountTypes" Style="width: 100%;" />
+            <ValidationMessage For="@(() => account.Type)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Initial Balance" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@account.Balance" Style="width: 100%;" ShowUpDown="false" />
+            <ValidationMessage For="@(() => account.Balance)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Account Number (Optional)" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@account.AccountNumber" Style="width: 100%;" Placeholder="e.g., XXXX1234" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@account.Description" Style="width: 100%;" Rows="3" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Status" Variant="Variant.Outlined">
+            <RadzenCheckBox @bind-Value="@account.IsActive" />
+            <RadzenLabel Text="Active" Style="margin-left: 0.5rem;" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton ButtonType="ButtonType.Submit" Icon="save" Text="Save" ButtonStyle="ButtonStyle.Primary" />
+            <RadzenButton ButtonType="ButtonType.Button" Icon="cancel" Text="Cancel" ButtonStyle="ButtonStyle.Light" 
+                          Click="@(() => DialogService.Close(null))" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? AccountId { get; set; }
+
+    private Account account = new();
+    private AccountType[] accountTypes = Enum.GetValues<AccountType>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AccountId.HasValue)
+        {
+            var existing = await AccountService.GetAccountByIdAsync(AccountId.Value);
+            if (existing != null)
+            {
+                account = existing;
+            }
+        }
+        else
+        {
+            account.IsActive = true;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (AccountId.HasValue)
+        {
+            await AccountService.UpdateAccountAsync(account);
+        }
+        else
+        {
+            await AccountService.CreateAccountAsync(account);
+        }
+        DialogService.Close(true);
+    }
+}

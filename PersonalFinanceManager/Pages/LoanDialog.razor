@@ -1,0 +1,80 @@
+@using PersonalFinanceManager.Data
+@using PersonalFinanceManager.Services
+@inject LoanService LoanService
+@inject AccountService AccountService
+@inject DialogService DialogService
+
+<EditForm Model="@loan" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Type" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@loan.Type" Data="@loanTypes" Style="width: 100%;" />
+            <ValidationMessage For="@(() => loan.Type)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Person Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@loan.PersonName" Style="width: 100%;" Placeholder="e.g., John Doe" />
+            <ValidationMessage For="@(() => loan.PersonName)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Amount" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@loan.Amount" Style="width: 100%;" ShowUpDown="false" />
+            <ValidationMessage For="@(() => loan.Amount)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Date" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@loan.Date" Style="width: 100%;" ShowTime="false" />
+            <ValidationMessage For="@(() => loan.Date)" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Due Date (Optional)" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@loan.DueDate" Style="width: 100%;" ShowTime="false" AllowClear="true" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Account" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@loan.AccountId" Data="@accounts" TextProperty="Name" ValueProperty="Id" 
+                            Style="width: 100%;" Placeholder="Select Account" AllowClear="true"
+                            Change="@OnAccountChanged" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@loan.Description" Style="width: 100%;" Rows="3" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton ButtonType="ButtonType.Submit" Icon="save" Text="Save" ButtonStyle="ButtonStyle.Primary" />
+            <RadzenButton ButtonType="ButtonType.Button" Icon="cancel" Text="Cancel" ButtonStyle="ButtonStyle.Light" 
+                          Click="@(() => DialogService.Close(null))" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    private LoanTransaction loan = new() { Date = DateTime.Today, Status = LoanStatus.Active };
+    private List<Account> accounts = new();
+    private TransactionType[] loanTypes = new[] { TransactionType.Lending, TransactionType.Borrowing };
+
+    protected override async Task OnInitializedAsync()
+    {
+        accounts = await AccountService.GetAllAccountsAsync();
+    }
+
+    private void OnAccountChanged(object value)
+    {
+        if (value != null && int.TryParse(value.ToString(), out int accountId))
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == accountId);
+            if (account != null)
+            {
+                loan.PaymentSource = account.Name;
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        await LoanService.CreateLoanAsync(loan);
+        DialogService.Close(true);
+    }
+}

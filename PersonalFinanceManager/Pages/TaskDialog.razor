@@ -1,0 +1,74 @@
+@inject TaskService TaskService
+@inject DialogService DialogService
+
+<EditForm Model="@task" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Company" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@task.Company" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Title" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@task.Title" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description" Variant="Variant.Outlined">
+            <RadzenTextArea @bind-Value="@task.Description" Rows="4" />
+        </RadzenFormField>
+
+        <RadzenRow>
+            <RadzenColumn Size="6">
+                <RadzenFormField Text="Priority" Variant="Variant.Outlined">
+                    <RadzenDropDown @bind-Value="@task.Priority" Data="@priorities" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="6">
+                <RadzenFormField Text="Status" Variant="Variant.Outlined">
+                    <RadzenDropDown @bind-Value="@task.Status" Data="@statuses" />
+                </RadzenFormField>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenFormField Text="Due Date" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@task.DueDate" DateFormat="yyyy-MM-dd" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? TaskId { get; set; }
+
+    private DailyTask task = new();
+    private Data.TaskPriority[] priorities = Enum.GetValues<Data.TaskPriority>();
+    private Data.TaskStatus[] statuses = Enum.GetValues<Data.TaskStatus>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TaskId.HasValue)
+        {
+            var existing = await TaskService.GetByIdAsync(TaskId.Value);
+            if (existing != null)
+                task = existing;
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        if (TaskId.HasValue)
+            await TaskService.UpdateAsync(task);
+        else
+            await TaskService.CreateAsync(task);
+
+        DialogService.Close(true);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(false);
+    }
+}

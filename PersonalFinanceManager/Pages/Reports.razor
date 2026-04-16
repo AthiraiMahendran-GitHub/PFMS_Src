@@ -1,0 +1,430 @@
+@page "/reports"
+@inject ReportService ReportService
+@inject ExportService ExportService
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Reports</PageTitle>
+
+<RadzenRow AlignItems="AlignItems.Center" class="rz-mb-4">
+    <RadzenColumn Size="12" SizeMD="8">
+        <RadzenText TextStyle="TextStyle.H3" TagName="TagName.H1" style="margin: 0;">
+            Reports & Analytics
+        </RadzenText>
+    </RadzenColumn>
+    <RadzenColumn Size="12" SizeMD="4">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="EXPORT ALL DATA" Icon="download" Click="@ExportAllData" ButtonStyle="ButtonStyle.Success" />
+        </RadzenStack>
+    </RadzenColumn>
+</RadzenRow>
+
+<RadzenCard class="rz-mb-4">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
+        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0;">Global Filters:</RadzenText>
+        <RadzenDatePicker @bind-Value="@reportFromDate" Placeholder="From Date" Style="width: 200px;" Change="@LoadReports" />
+        <RadzenDatePicker @bind-Value="@reportToDate" Placeholder="To Date" Style="width: 200px;" Change="@LoadReports" />
+        <RadzenButton Text="Clear" Icon="clear" ButtonStyle="ButtonStyle.Light" Click="@ClearFilters" />
+    </RadzenStack>
+</RadzenCard>
+
+<RadzenTabs>
+    <Tabs>
+        <RadzenTabsItem Text="Expense Analysis">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Category-wise Expenses</RadzenText>
+                
+                @if (categoryReport != null && categoryReport.Any())
+                {
+                    <RadzenDataGrid Data="@categoryReport" TItem="CategoryExpenseReport" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="CategoryExpenseReport" Property="Category" Title="Category" />
+                            <RadzenDataGridColumn TItem="CategoryExpenseReport" Property="TotalAmount" Title="Total Amount">
+                                <Template Context="item">
+                                    ₹@item.TotalAmount.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="CategoryExpenseReport" Property="TransactionCount" Title="Transactions" />
+                            <RadzenDataGridColumn TItem="CategoryExpenseReport" Property="AverageAmount" Title="Average">
+                                <Template Context="item">
+                                    ₹@item.AverageAmount.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+
+                    <RadzenChart class="rz-mt-4">
+                        <RadzenPieSeries Data="@categoryReport" CategoryProperty="Category" ValueProperty="TotalAmount" 
+                                         Title="Expenses by Category" />
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenText>No expense data available</RadzenText>
+                }
+            </RadzenCard>
+
+            <RadzenCard class="rz-mt-4">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Monthly Expense Trends</RadzenText>
+                
+                @if (monthlyTrends != null && monthlyTrends.Any())
+                {
+                    <RadzenChart>
+                        <RadzenLineSeries Data="@monthlyTrends" CategoryProperty="MonthName" ValueProperty="TotalAmount" 
+                                          Title="Monthly Expenses" />
+                        <RadzenCategoryAxis Padding="20" />
+                        <RadzenValueAxis>
+                            <RadzenGridLines Visible="true" />
+                            <RadzenAxisTitle Text="Amount ($)" />
+                        </RadzenValueAxis>
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenText>No trend data available</RadzenText>
+                }
+            </RadzenCard>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Investment Performance">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Investment Portfolio Performance</RadzenText>
+                
+                @if (investmentReport != null && investmentReport.Any())
+                {
+                    <RadzenDataGrid Data="@investmentReport" TItem="InvestmentPerformanceReport" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="Name" Title="Investment" />
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="Type" Title="Type" />
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="InitialAmount" Title="Initial">
+                                <Template Context="item">
+                                    ₹@item.InitialAmount.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="CurrentValue" Title="Current">
+                                <Template Context="item">
+                                    ₹@item.CurrentValue.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="ProfitLoss" Title="P/L">
+                                <Template Context="item">
+                                    <RadzenText Style="@GetProfitLossColor(item.ProfitLoss)">
+                                        ₹@item.ProfitLoss.ToString("N2")
+                                    </RadzenText>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="ROIPercentage" Title="ROI %">
+                                <Template Context="item">
+                                    <RadzenText Style="@GetProfitLossColor(item.ProfitLoss)">
+                                        @item.ROIPercentage.ToString("F2")%
+                                    </RadzenText>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="InvestmentPerformanceReport" Property="DaysHeld" Title="Days Held" />
+                        </Columns>
+                    </RadzenDataGrid>
+
+                    <RadzenChart class="rz-mt-4">
+                        <RadzenColumnSeries Data="@investmentReport" CategoryProperty="Name" ValueProperty="ROIPercentage" 
+                                            Title="ROI % by Investment" />
+                        <RadzenCategoryAxis Padding="20" />
+                        <RadzenValueAxis>
+                            <RadzenGridLines Visible="true" />
+                            <RadzenAxisTitle Text="ROI %" />
+                        </RadzenValueAxis>
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenText>No investment data available</RadzenText>
+                }
+            </RadzenCard>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Task Analytics">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Task Completion Report</RadzenText>
+                
+                @if (taskReport != null)
+                {
+                    <RadzenRow Gap="1rem" class="rz-mb-4">
+                        <RadzenColumn Size="12" SizeMD="3">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Total Tasks</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">@taskReport.TotalTasks</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="3">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Completed</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4" Style="color: green;">@taskReport.CompletedTasks</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="3">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Pending</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4" Style="color: orange;">@taskReport.PendingTasks</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="3">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Completion Rate</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">@taskReport.CompletionRate.ToString("F1")%</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    @if (taskReport.TasksByCompany.Any())
+                    {
+                        <RadzenChart>
+                            <RadzenColumnSeries Data="@taskReport.TasksByCompany" CategoryProperty="Key" ValueProperty="Value" 
+                                                Title="Tasks by Company" />
+                            <RadzenCategoryAxis Padding="20" />
+                            <RadzenValueAxis>
+                                <RadzenGridLines Visible="true" />
+                                <RadzenAxisTitle Text="Number of Tasks" />
+                            </RadzenValueAxis>
+                        </RadzenChart>
+                    }
+                }
+            </RadzenCard>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Income Analysis">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Income by Source</RadzenText>
+                
+                @if (incomeSourceReport != null && incomeSourceReport.Any())
+                {
+                    <RadzenDataGrid Data="@incomeSourceReport" TItem="IncomeSourceReport" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="IncomeSourceReport" Property="Source" Title="Source" />
+                            <RadzenDataGridColumn TItem="IncomeSourceReport" Property="TotalAmount" Title="Total Amount">
+                                <Template Context="item">
+                                    ₹@item.TotalAmount.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="IncomeSourceReport" Property="TransactionCount" Title="Transactions" />
+                            <RadzenDataGridColumn TItem="IncomeSourceReport" Property="AverageAmount" Title="Average">
+                                <Template Context="item">
+                                    ₹@item.AverageAmount.ToString("N2")
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+
+                    <RadzenChart class="rz-mt-4">
+                        <RadzenPieSeries Data="@incomeSourceReport" CategoryProperty="Source" ValueProperty="TotalAmount" 
+                                         Title="Income by Source" />
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenText>No income data available</RadzenText>
+                }
+            </RadzenCard>
+
+            <RadzenCard class="rz-mt-4">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Monthly Income Trends</RadzenText>
+                
+                @if (monthlyIncomeTrends != null && monthlyIncomeTrends.Any())
+                {
+                    <RadzenChart>
+                        <RadzenLineSeries Data="@monthlyIncomeTrends" CategoryProperty="MonthName" ValueProperty="TotalAmount" 
+                                          Title="Monthly Income" />
+                        <RadzenCategoryAxis Padding="20" />
+                        <RadzenValueAxis>
+                            <RadzenGridLines Visible="true" />
+                            <RadzenAxisTitle Text="Amount (₹)" />
+                        </RadzenValueAxis>
+                    </RadzenChart>
+                }
+                else
+                {
+                    <RadzenText>No income trend data available</RadzenText>
+                }
+            </RadzenCard>
+
+            <RadzenCard class="rz-mt-4">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Income vs Expense Comparison</RadzenText>
+                
+                @if (incomeVsExpenseReport != null)
+                {
+                    <RadzenRow Gap="1rem" class="rz-mb-4">
+                        <RadzenColumn Size="12" SizeMD="4">
+                            <RadzenCard Style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white;">
+                                <RadzenText TextStyle="TextStyle.Overline">Total Income</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">₹@incomeVsExpenseReport.TotalIncome.ToString("N2")</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="4">
+                            <RadzenCard Style="background: linear-gradient(135deg, #f44336 0%, #e91e63 100%); color: white;">
+                                <RadzenText TextStyle="TextStyle.Overline">Total Expense</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">₹@incomeVsExpenseReport.TotalExpense.ToString("N2")</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="4">
+                            <RadzenCard Style="@GetSavingsCardStyle(incomeVsExpenseReport.NetSavings)">
+                                <RadzenText TextStyle="TextStyle.Overline">Net Savings</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">₹@incomeVsExpenseReport.NetSavings.ToString("N2")</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    @if (incomeVsExpenseReport.MonthlyComparison.Any())
+                    {
+                        <RadzenChart>
+                            <RadzenLineSeries Data="@incomeVsExpenseReport.MonthlyComparison" CategoryProperty="MonthName" 
+                                              ValueProperty="Income" Title="Income" />
+                            <RadzenLineSeries Data="@incomeVsExpenseReport.MonthlyComparison" CategoryProperty="MonthName" 
+                                              ValueProperty="Expense" Title="Expense" />
+                            <RadzenLineSeries Data="@incomeVsExpenseReport.MonthlyComparison" CategoryProperty="MonthName" 
+                                              ValueProperty="NetSavings" Title="Net Savings" />
+                            <RadzenCategoryAxis Padding="20" />
+                            <RadzenValueAxis>
+                                <RadzenGridLines Visible="true" />
+                                <RadzenAxisTitle Text="Amount (₹)" />
+                            </RadzenValueAxis>
+                            <RadzenLegend Position="LegendPosition.Bottom" />
+                        </RadzenChart>
+                    }
+                }
+            </RadzenCard>
+        </RadzenTabsItem>
+        <RadzenTabsItem Text="Transactions">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Transaction History</RadzenText>
+                <RadzenDataGrid Data="@allTransactions" TItem="TransactionViewModel" AllowSorting="true" AllowPaging="true" PageSize="10">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Property="Date" Title="Date" Width="120px">
+                            <Template Context="t">@t.Date.ToString("dd MMM yyyy")</Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Property="Type" Title="Type" Width="100px" />
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Property="Category" Title="Category/Source" />
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Property="Description" Title="Description" />
+                        <RadzenDataGridColumn TItem="TransactionViewModel" Property="Amount" Title="Amount" Width="150px">
+                            <Template Context="t">
+                                <RadzenText Style="@GetAmountColor(t.Type)">₹@t.Amount.ToString("N2")</RadzenText>
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenCard>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Loan Report">
+            <RadzenCard class="rz-mt-3">
+                <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Lending & Borrowing Summary</RadzenText>
+                @if (loanReport != null)
+                {
+                    <RadzenRow Gap="1rem" class="rz-mb-4">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenCard Style="background: #fff8e1;">
+                                <RadzenText TextStyle="TextStyle.Overline">Total Lent</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">₹@loanReport.TotalLent.ToString("N2")</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenCard Style="background: #e3f2fd;">
+                                <RadzenText TextStyle="TextStyle.Overline">Total Borrowed</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H4">₹@loanReport.TotalBorrowed.ToString("N2")</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+                    <RadzenDataGrid Data="@loanReport.Details" TItem="LoanReportDetail" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="LoanReportDetail" Property="PersonName" Title="Person" />
+                            <RadzenDataGridColumn TItem="LoanReportDetail" Property="Type" Title="Type" />
+                            <RadzenDataGridColumn TItem="LoanReportDetail" Property="InitialAmount" Title="Initial">
+                                <Template Context="d">₹@d.InitialAmount.ToString("N2")</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="LoanReportDetail" Property="Balance" Title="Balance">
+                                <Template Context="d">₹@d.Balance.ToString("N2")</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="LoanReportDetail" Property="Status" Title="Status" />
+                        </Columns>
+                    </RadzenDataGrid>
+                }
+            </RadzenCard>
+        </RadzenTabsItem>
+    </Tabs>
+</RadzenTabs>
+
+@code {
+    private DateTime? reportFromDate;
+    private DateTime? reportToDate;
+
+    private List<CategoryExpenseReport>? categoryReport;
+    private List<MonthlyExpenseTrend>? monthlyTrends;
+    private List<InvestmentPerformanceReport>? investmentReport;
+    private TaskCompletionReport? taskReport;
+    private List<IncomeSourceReport>? incomeSourceReport;
+    private List<MonthlyIncomeTrend>? monthlyIncomeTrends;
+    private IncomeVsExpenseReport? incomeVsExpenseReport;
+    
+    private List<TransactionViewModel>? allTransactions;
+    private LoanSummaryReport? loanReport;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReports();
+    }
+
+    private async Task LoadReports()
+    {
+        categoryReport = await ReportService.GetCategoryExpenseReportAsync(reportFromDate, reportToDate);
+        monthlyTrends = await ReportService.GetMonthlyExpenseTrendsAsync(12); // Trends are usually fixed period
+        investmentReport = await ReportService.GetInvestmentPerformanceReportAsync();
+        taskReport = await ReportService.GetTaskCompletionReportAsync(reportFromDate, reportToDate);
+        incomeSourceReport = await ReportService.GetIncomeSourceReportAsync(reportFromDate, reportToDate);
+        monthlyIncomeTrends = await ReportService.GetMonthlyIncomeTrendsAsync(12);
+        incomeVsExpenseReport = await ReportService.GetIncomeVsExpenseReportAsync(12);
+        
+        allTransactions = await ReportService.GetFullTransactionReportAsync(reportFromDate, reportToDate);
+        loanReport = await ReportService.GetLoanSummaryReportAsync(reportFromDate, reportToDate);
+    }
+
+    private async Task ClearFilters()
+    {
+        reportFromDate = null;
+        reportToDate = null;
+        await LoadReports();
+    }
+
+    private async Task ExportAllData()
+    {
+        try
+        {
+            var data = await ExportService.ExportAllDataToExcelAsync();
+            var fileName = $"PersonalFinanceData_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(data));
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Data exported successfully");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Export failed: {ex.Message}");
+        }
+    }
+
+    private string GetAmountColor(string type)
+    {
+        return type switch
+        {
+            "Income" or "Borrowing" => "color: green; font-weight: bold;",
+            "Expense" or "Lending" => "color: red; font-weight: bold;",
+            _ => "color: var(--rz-text-color);"
+        };
+    }
+
+    private string GetProfitLossColor(decimal value)
+    {
+        return value >= 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;";
+    }
+
+    private string GetSavingsCardStyle(decimal savings)
+    {
+        var color = savings >= 0 ? "#4caf50, #45a049" : "#f44336, #e91e63";
+        return $"background: linear-gradient(135deg, {color}); color: white;";
+    }
+}

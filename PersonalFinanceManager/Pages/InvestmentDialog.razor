@@ -1,0 +1,64 @@
+@inject InvestmentService InvestmentService
+@inject DialogService DialogService
+
+<EditForm Model="@investment" OnValidSubmit="@OnSubmit">
+    <DataAnnotationsValidator />
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@investment.Name" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Type" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@investment.Type" Data="@investmentTypes" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Initial Amount" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@investment.InitialAmount" Min="0" Step="0.01" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Current Value" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@investment.CurrentValue" Min="0" Step="0.01" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Purchase Date" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@investment.PurchaseDate" DateFormat="yyyy-MM-dd" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" />
+        </RadzenStack>
+    </RadzenStack>
+</EditForm>
+
+@code {
+    [Parameter] public int? InvestmentId { get; set; }
+
+    private Investment investment = new() { PurchaseDate = DateTime.Today };
+    private List<string> investmentTypes = new() { "Stocks", "Crypto", "Mutual Funds", "Real Estate", "Bonds", "Gold", "Other" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (InvestmentId.HasValue)
+        {
+            var existing = await InvestmentService.GetByIdAsync(InvestmentId.Value);
+            if (existing != null)
+                investment = existing;
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        if (InvestmentId.HasValue)
+            await InvestmentService.UpdateAsync(investment);
+        else
+            await InvestmentService.CreateAsync(investment);
+
+        DialogService.Close(true);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(false);
+    }
+}
